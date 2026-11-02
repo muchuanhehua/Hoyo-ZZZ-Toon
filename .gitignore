@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.verification/
+.build/
+tools/
+release/*
+!release/index.json
+!release/*.md

@@ -1,0 +1,40 @@
+Hoyo-ZZZ-Toon 0.4.0
+
+Copyright 2026 muchuanhehua
+Distributed under GPL-3.0-only. See LICENSE.
+
+Research references:
+- Kythera: Kythera's ZZZ Shader V2 (toon lighting and face shading organization).
+- Jideeh: Kytheras-ZZZ-Shader v1.7.1 (head frame, eye layer and inverted hull organization).
+  https://github.com/Jideeh1/Kytheras-ZZZ-Shader
+- MMD Tools: public PMX import API and PMX shininess-to-roughness convention;
+  installed separately by the user.
+  https://github.com/MMD-Blender/blender_mmd_tools
+- Hoyo-GI-Toon: PMX semantics and reversible-data workflow experience.
+- VRM Consortium / MToon: separation of light-direction shading and lit/shade colors.
+  https://github.com/vrm-c/vrm-specification/blob/master/specification/VRMC_materials_mtoon-1.0/README.md
+
+Adapted GPL-3.0 source formulas:
+- ImLaoBJie / RandomPlayToon, commit 87ebc01de7c6a1ab4796b7da7196b88830d74667.
+  https://github.com/ImLaoBJie/RandomPlayToon
+  materials/graph.py (toon and specular), detail_review.py (hair response),
+  scene_response.py (regularized light chromaticity), and the sampled-region
+  matching approach of source_asset_match.py. Changes are integrated in
+  materials/surface.py and surface_inputs.py, with PMX ownership, region gating,
+  source preservation and lifecycle handling implemented here. Version 0.5 also
+  studies vivian_parity.py (shared display light/shadow separation), light_color.py
+  (bounded colour response) and surface_refinement.py (view/key-dependent broad
+  reflection). Its three-band palette, saturation-gated ambient colour, skin
+  palette and common cloth response are implemented in materials/surface.py.
+  Character presets, per-character material patches and authored face fields
+  are not included. The upstream GPL license is compatible with this GPLv3 work.
+
+This candidate contains native-node builders and its own workflow code.
+Research .blend files, character models, game textures and private verification assets
+are not included. BASIC remains a generic face approximation; SDF mode uses a
+separately selected, UV-matched shared Lightmap. The SDF direction curve, mirrored
+sampling and R/Alpha mask math were studied from the local Kythera V2 reference.
+Its native-light receiver and reversible PMX integration are implemented here.
+The frozen 0.3 palette studied the native Lit/Shadow HSV curves. Versions 0.4/0.5
+use the shared surface implementations described above; they are not a port of
+the complete game renderer or of character-specific RandomPlayToon presets.
