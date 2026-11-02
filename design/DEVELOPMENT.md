@@ -643,6 +643,10 @@ Blender 扩展格式校验退出码 0，记录为 `extension-validation.json`。
 
 ### 发布状态
 
-34 个源码／文档文件已整理为本地 Git 提交，私有验证目录、旧研究工具与历史构建文件未跟踪。GitHub CLI 账号已核对为 muchuanhehua；目标同名仓库尚不存在。
+已公开发布 [muchuanhehua/Hoyo-ZZZ-Toon](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon) 与正式 [v0.5.1 Release](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/tag/v0.5.1)。仓库跟踪 34 个源码／文档文件；私有验证目录、旧研究工具与历史构建文件未跟踪。发布标签指向 `71fd164a53cbac70f88a5eee9b4bd11c702a6ccd`，之后的发布结果记录仅更新文档。
 
-首次创建公开仓库并推送源码被自动审批拒绝，理由是指令没有明确包含源码公开。用户随后明确选择“公开源码、文档和 0.5.1 安装包”，本次按该范围继续发布。安装包使用已冻结载荷；仓库索引发布后接入现有本机安装。最终机器记录为 `publication.json`。
+Release 上传文件的 GitHub 摘要、匿名下载摘要、扩展索引中的摘要均为 `3eaab910603f1fe345ac4c030968877de69e3d9f855e9f819270b4e8ce3609f4`，大小均为 73,297 字节。发布状态为正式版本，非草稿、非预发行版，并设为最新版本。匿名读取扩展索引及安装包成功。
+
+本机现有 `Hoyo_ZZZ_Toon` 仓库已接入 `https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.json`。Blender 原生同步操作成功，本地缓存的版本、下载地址与摘要正确；插件仍启用，启动时检查更新已开启，偏好设置已保存。接入更新源前后场景快照一致。证据见 `remote-sync.json`、`public-download.json`、`release-published.json` 与汇总 `publication.json`。
+
+首次公开推送因自动审批要求明确源码公开范围而中断；用户随后选择“公开源码、文档和 0.5.1 安装包”后完成发布。该审批问题已解除，不再是当前阻塞项。
