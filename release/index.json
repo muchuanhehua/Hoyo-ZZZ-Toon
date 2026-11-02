@@ -5,7 +5,7 @@
     {
       "schema_version": "1.0.0",
       "id": "hoyo_zzz_toon",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "name": "Hoyo-ZZZ-Toon",
       "tagline": "面向 MMD 流程的绝区零 PMX 基础 Toon 与角色预览",
       "maintainer": "muchuanhehua",
@@ -22,9 +22,9 @@
       "permissions": {
         "files": "读取用户选择的 PMX 和本地贴图"
       },
-      "archive_url": "https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/download/v0.5.1/hoyo_zzz_toon-0.5.1.zip",
-      "archive_size": 73297,
-      "archive_hash": "sha256:3eaab910603f1fe345ac4c030968877de69e3d9f855e9f819270b4e8ce3609f4"
+      "archive_url": "https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/download/v0.5.2/hoyo_zzz_toon-0.5.2.zip",
+      "archive_size": 74097,
+      "archive_hash": "sha256:fa772ff5b76245f942892273e18d4d277765e3999e88755aae8e81d3939d5fa0"
     }
   ]
 }
