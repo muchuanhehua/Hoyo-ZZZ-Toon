@@ -1,10 +1,10 @@
 # Hoyo-ZZZ-Toon
 
-面向绝区零 PMX 角色与 MMD 工作流的 Blender 渲染插件。当前源码为 **0.5.1 共用描边调整＋基础外观与共享脸影 SDF**，使用 Blender 5.2 / EEVEE，PMX 导入依赖 MMD Tools。历史包保留。
+面向绝区零 PMX 角色与 MMD 工作流的 Blender 渲染插件。当前源码为 **0.5.2：中文预览场景修复＋共用基础外观与共享脸影 SDF**，使用 Blender 5.2 / EEVEE，PMX 导入依赖 MMD Tools。历史包保留。
 
-[下载 0.5.1](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/tag/v0.5.1) · [版本说明](release/0.5.1.md)
+[下载 0.5.2](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/tag/v0.5.2) · [版本说明](release/0.5.2.md)
 
-可直接安装 Release 中的 `hoyo_zzz_toon-0.5.1.zip`，也可在 Blender **偏好设置 → 获取扩展 → 仓库 → 添加远程仓库** 中添加以下地址，刷新后安装 **Hoyo-ZZZ-Toon**，以后可在同一入口检查更新：
+可直接安装 Release 中的 `hoyo_zzz_toon-0.5.2.zip`，也可在 Blender **偏好设置 → 获取扩展 → 仓库 → 添加远程仓库** 中添加以下地址，刷新后安装 **Hoyo-ZZZ-Toon**，以后可在同一入口检查更新：
 
 ```text
 https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.json
@@ -38,6 +38,8 @@ https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.
 
 ## 当前验证
 
+0.5.2 修复中文数据名称下创建预览时报 `Background` 不存在的问题。在英文、中文数据名称开启／关闭三种设置下，实际预览操作符的新建、切换与重复进入均通过，原场景与模型数据保持；中文预览实渲和创建中途失败回滚通过。此次只改预览环境节点查找，不修改着色、描边或脸影参数。
+
 0.5.1 已在独立后台重新完成三角色描边专项检查：统一六项参数、全身／近景／较远机位、左右侧与背面、适用参数的实际画面响应、旧工程更新、重复应用、恢复及保存重开通过。关闭描边后的前后画面差不超过一个 8-bit 色阶，青衣与薇薇安逐像素一致。基础 PMX 生命周期和真实脸部遮挡也已用本次源码重跑通过；下列 0.5.0 全库与 SDF 核心结果是保留的历史证据，本次没有重跑全库。
 
 0.5 的艾莲、青衣、薇薇安使用完全相同的 21 项共用参数，在 City-Terrace 的统一侧光下完成全身、两侧、侧后、背面、背光与头骨 ±40° 检查。保存工程内嵌图像。游戏／0.4／0.5 对照中，两版插件使用相同的背景、相机、姿态和灯光；游戏截图为外部参考，姿态与机位有所不同。当前批次和图片入口统一记录于 [开发记录](design/DEVELOPMENT.md)。
@@ -64,4 +66,4 @@ https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.
 
 0.3.0 使用新运行载荷重新尝试全部 49 个主体：46 个生成全身／头部图并通过原数据与恢复检查，3 个因原有缺图中断，运行失败 0；46 个的发片／眼层覆盖记录与 0.2 相同。7 个代表通过 City-Terrace 侧后、背光和实际遮挡检查。新增亮暗配色的原生对照、环境光强度独立性、身体真实遮挡、灯光颜色、旧工程迁移和无头骨主体均通过；三角色共享 SDF 全身工程已保存重开。画面层次有所改善，发色、肤色和袜面仍与游戏存在差距，尚未达到游戏外观验收。
 
-完整 Kythera V2 Body／Eye、完整 VMD、材质／组 Morph、物理、GUI 撤销重做与同场景多角色隔离尚未验证，游戏外观尚未验收。发布版本与安装说明见 [0.5.1 版本说明](release/0.5.1.md)。
+完整 Kythera V2 Body／Eye、完整 VMD、材质／组 Morph、物理、GUI 撤销重做与同场景多角色隔离尚未验证，游戏外观尚未验收。发布版本与安装说明见 [0.5.2 版本说明](release/0.5.2.md)。

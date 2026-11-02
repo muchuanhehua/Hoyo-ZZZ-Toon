@@ -43,7 +43,9 @@ def create_preview(root, context, switch=True):
             scene.collection.objects.link(obj)
         world = tag(bpy.data.worlds.new(root.name + ' • HZZ World'), p.uid, 'preview')
         world.use_nodes = True
-        world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0
+        # Default node names are translated when new data names follow the UI language.
+        background = next(node for node in world.node_tree.nodes if node.type == 'BACKGROUND')
+        background.inputs['Strength'].default_value = 0
         scene.world = world
         light_data = tag(bpy.data.lights.new(root.name + ' • HZZ Key', 'SUN'), p.uid, 'preview')
         light_data.energy, light_data.angle = 2, radians(4)
