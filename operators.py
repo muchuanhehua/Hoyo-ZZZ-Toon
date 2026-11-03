@@ -1,31 +1,36 @@
-"""Explicit, undoable operations; native Blender owns rendering and output."""
+"""Small explicit workflow operations; original assets and native output stay intact."""
+import traceback
 import bpy
-from bpy.props import IntProperty, StringProperty
+from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 from .adapters import pmx
-from . import workflow, scene
-
-
-def object_mode(context):
-    if context.mode != 'OBJECT':
-        raise ValueError('请先切换到 Object Mode')
+from . import workflow, scene_models, rendering, lighting, scene_presets, ownership, gaze
 
 
 class CheckedOperation:
     def execute(self, context):
         try:
-            object_mode(context)
-            self.run(context)
+            rendering.check_idle()
+            if context.mode != 'OBJECT':
+                raise ValueError('请先切换到对象模式')
+            result = self.run(context)
         except (ValueError, RuntimeError, OSError) as exc:
+            traceback.print_exc()
             self.report({'ERROR'}, str(exc))
             return {'CANCELLED'}
-        return {'FINISHED'}
+        return result if isinstance(result, set) else {'FINISHED'}
+
+
+class CharacterOperation(CheckedOperation):
+    @classmethod
+    def poll(cls, context):
+        return not bpy.app.is_job_running('RENDER') and scene_models.selected(context) is not None
 
 
 class HZZ_OT_import(CheckedOperation, bpy.types.Operator, ImportHelper):
     bl_idname = 'hzz.import_pmx'
-    bl_label = '导入 PMX'
-    bl_description = '通过 MMD Tools 导入模型并扫描，不修改原文件'
+    bl_label = '导入模型'
+    bl_description = '导入 PMX 主体；保留 MMD 骨架、动作、物理和原材质'
     bl_options = {'REGISTER', 'UNDO'}
     filename_ext = '.pmx'
     filter_glob: StringProperty(default='*.pmx', options={'HIDDEN'})
@@ -34,150 +39,187 @@ class HZZ_OT_import(CheckedOperation, bpy.types.Operator, ImportHelper):
         root = pmx.import_model(self.filepath, context)
         workflow.scan(root, context)
         context.scene.hzz_model = root
-        self.report({'INFO'}, root.hzz_character.report)
+        rendering.prepare(context.scene, root)
+        self.report({'INFO'}, '已导入角色，点击应用材质即可预览')
 
 
-class HZZ_OT_scan(CheckedOperation, bpy.types.Operator):
-    bl_idname = 'hzz.scan'
-    bl_label = '扫描当前选择'
-    bl_description = '识别所选 MMD 模型并读取源材质用途'
-    bl_options = {'REGISTER', 'UNDO'}
+def setup_materials(root, context):
+    """Resolve the target once, supply missing scene controls and apply atomically."""
+    scene_models.ensure(root, context)
+    p, scene = root.hzz_character, context.scene
+    # Old files retain their source directory; no manual correspondence JSON is needed.
+    if not p.fbx_directory and p.get('surface_directory'):
+        from pathlib import Path
+        folder = Path(bpy.path.abspath(p['surface_directory']))
+        p.fbx_directory = str(folder.parent if folder.name.casefold() == 'textures' else folder)
+    before = ownership.snapshot()
+    old = scene.hzz_light, p.sun, scene.camera
+    previous_suns = {obj: obj.hzz_character.sun for obj in scene.objects if obj.hzz_character.uid}
+    light_visibility = {obj: (obj.hide_render, obj.hide_viewport) for obj in scene.objects if obj.type == 'LIGHT'}
+    old_active, old_selected = scene.hzz_lighting.active, scene.hzz_lighting.selected
+    preset_count = len(scene.hzz_lighting.presets)
+    try:
+        light = scene.hzz_light
+        if not light or light.name not in scene.objects:
+            light = p.sun if p.sun and p.sun.name in scene.objects else next(
+                (o for o in scene.objects if o.type == 'LIGHT' and o.data.type == 'SUN'), None)
+            if light:
+                scene.hzz_light = light
+            else:
+                light = lighting.default_light(scene)
+        p.sun = light
+        rendering.prepare(scene, root)
+        workflow.apply(root, context)
+    except Exception:
+        scene.hzz_light, p.sun, scene.camera = old
+        for obj, sun in previous_suns.items():
+            obj.hzz_character.sun = sun
+        for obj, flags in light_visibility.items():
+            obj.hide_render, obj.hide_viewport = flags
+        scene.hzz_lighting.active, scene.hzz_lighting.selected = old_active, old_selected
+        while len(scene.hzz_lighting.presets) > preset_count:
+            scene.hzz_lighting.presets.remove(len(scene.hzz_lighting.presets) - 1)
+        bpy.data.batch_remove(ids=ownership.created(before))
+        raise
+    rendering.configure_material_render(scene)
+    rendering.preview_materials(context)
 
-    def run(self, context):
-        root = pmx.root_of(context.active_object) or pmx.selected_root(context)
-        workflow.scan(root, context)
-        self.report({'INFO'}, root.hzz_character.report)
 
-
-class HZZ_OT_apply(CheckedOperation, bpy.types.Operator):
+class HZZ_OT_apply(CharacterOperation, bpy.types.Operator):
     bl_idname = 'hzz.apply'
     bl_label = '应用材质'
-    bl_description = '按当前用途映射装配基础 Toon；重复应用会替换本插件旧资源'
+    bl_description = '接入主体并自动匹配所选 FBX 资源；完成后参数实时预览'
     bl_options = {'REGISTER', 'UNDO'}
 
     def run(self, context):
-        root = pmx.selected_root(context)
-        workflow.apply(root, context)
+        root = scene_models.selected(context)
+        setup_materials(root, context)
         self.report({'INFO'}, root.hzz_character.report)
 
 
-class HZZ_OT_restore(CheckedOperation, bpy.types.Operator):
+class HZZ_OT_restore(CharacterOperation, bpy.types.Operator):
     bl_idname = 'hzz.restore'
     bl_label = '恢复原材质'
     bl_options = {'REGISTER', 'UNDO'}
 
     def run(self, context):
-        root = pmx.selected_root(context)
+        root = scene_models.selected(context)
+        if not root.hzz_character.managed:
+            raise ValueError('当前角色尚未应用材质')
         workflow.restore(root)
-        self.report({'INFO'}, root.hzz_character.report)
 
 
-class HZZ_OT_surface_defaults(CheckedOperation, bpy.types.Operator):
-    bl_idname = 'hzz.surface_defaults'
-    bl_label = '重置共用表面参数'
-    bl_description = '重置为同一套身体、皮肤与头发默认值，保留资源绑定和脸影模式'
+class HZZ_OT_reset(CharacterOperation, bpy.types.Operator):
+    bl_idname = 'hzz.reset_materials'
+    bl_label = '重置参数'
     bl_options = {'REGISTER', 'UNDO'}
 
     def run(self, context):
-        from .properties import SURFACE_CONTROLS
-        root = pmx.selected_root(context)
-        profile = root.hzz_character
-        profile.building = True
-        try:
-            for name in SURFACE_CONTROLS:
-                profile.property_unset(name)
-        finally:
-            profile.building = False
-        workflow.refresh(root)
-
-
-class HZZ_OT_outline_defaults(CheckedOperation, bpy.types.Operator):
-    bl_idname = 'hzz.outline_defaults'
-    bl_label = '重置共用描边参数'
-    bl_description = '按模型高度重置线宽、材质用途倍率和线色；旧版描边需重新应用材质'
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def run(self, context):
-        from .properties import OUTLINE_CONTROLS
+        from .properties import SURFACE_CONTROLS, OUTLINE_CONTROLS
         from .outlines import DEFAULT_WIDTH_RATIO
-        root = pmx.selected_root(context)
-        profile = root.hzz_character
-        profile.building = True
+        root = scene_models.ensure(scene_models.selected(context), context)
+        p = root.hzz_character
+        p.building = True
         try:
-            profile.outline_width = profile.height * DEFAULT_WIDTH_RATIO
-            for name in OUTLINE_CONTROLS:
-                profile.property_unset(name)
+            for name in (*SURFACE_CONTROLS, *OUTLINE_CONTROLS, 'shadow_position', 'shadow_softness'):
+                p.property_unset(name)
+            p.outline_width = p.height * DEFAULT_WIDTH_RATIO
         finally:
-            profile.building = False
+            p.building = False
         workflow.refresh(root)
 
 
-class HZZ_OT_preview(CheckedOperation, bpy.types.Operator):
-    bl_idname = 'hzz.preview'
-    bl_label = '创建／进入预览场景'
-    bl_description = '创建独立 EEVEE 场景、World、太阳光和相机'
+class HZZ_OT_toggle_bones(CharacterOperation, bpy.types.Operator):
+    bl_idname = 'hzz.toggle_bones'
+    bl_label = '骨骼显示'
+    bl_description = '切换当前角色骨架的视口显示'
     bl_options = {'REGISTER', 'UNDO'}
 
     def run(self, context):
-        root = pmx.selected_root(context)
-        scene.create_preview(root, context)
+        rig = scene_models.armature(scene_models.selected(context))
+        rig.hide_set(not rig.hide_get())
 
 
-class HZZ_OT_texture(CheckedOperation, bpy.types.Operator, ImportHelper):
-    bl_idname = 'hzz.set_base_texture'
-    bl_label = '选择基础贴图'
-    bl_description = '为当前材质指定本地基础贴图，重新应用后生效'
+class HZZ_OT_load_scene(CheckedOperation, bpy.types.Operator):
+    bl_idname = 'hzz.load_scene'
+    bl_label = '载入场景'
+    bl_description = '载入布景、主光、相机与世界，不移动角色'
     bl_options = {'REGISTER', 'UNDO'}
-    filter_glob: StringProperty(default='*.png;*.tga;*.bmp;*.jpg;*.jpeg;*.dds;*.tif;*.exr', options={'HIDDEN'})
-    index: IntProperty()
 
     def run(self, context):
-        p = pmx.selected_root(context).hzz_character
-        if not 0 <= self.index < len(p.materials):
-            raise ValueError('材质选择已改变，请重新选择')
-        p.materials[self.index].base_override = bpy.data.images.load(self.filepath, check_existing=True)
+        scene_presets.load(context, context.scene.hzz_scene_preset)
 
 
-class HZZ_OT_face_lightmap(CheckedOperation, bpy.types.Operator, ImportHelper):
-    bl_idname = 'hzz.set_face_lightmap'
-    bl_label = '选择共享脸影图'
-    bl_description = '绑定已核对与模型 UV 匹配的 Face Lightmap；源图像设置保持独立'
+class HZZ_OT_remove_scene(CheckedOperation, bpy.types.Operator):
+    bl_idname = 'hzz.remove_scene'
+    bl_label = '移除场景'
+    bl_description = '移除本插件布景并恢复原引用；保留用户添加与复用的数据'
     bl_options = {'REGISTER', 'UNDO'}
-    filter_glob: StringProperty(default='*.png;*.tga;*.dds;*.tif;*.exr', options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.scene.hzz_scene.uid and not bpy.app.is_job_running('RENDER'))
 
     def run(self, context):
-        root = pmx.selected_root(context)
-        before = {i.as_pointer() for i in bpy.data.images}
-        image = bpy.data.images.load(self.filepath, check_existing=True)
-        from .materials.face import validate_image
-        try:
-            validate_image(image)
-        except ValueError:
-            if image.as_pointer() not in before and image.users == 0:
-                bpy.data.images.remove(image)
-            raise
-        root.hzz_character.face_lightmap = image
-        root.hzz_character.report = '已绑定共享脸影图；选择 SDF 模式后重新应用材质'
+        scene_presets.remove(context)
+
+
+class HZZ_OT_light(CheckedOperation, bpy.types.Operator):
+    bl_idname = 'hzz.apply_light_preset'
+    bl_label = '启用打光'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def run(self, context):
+        lighting.apply_preset(context.scene, context.scene.hzz_lighting.selected)
+
+
+class HZZ_OT_align_camera(CheckedOperation, bpy.types.Operator):
+    bl_idname = 'hzz.align_camera'
+    bl_label = '相机对齐当前视角'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(not bpy.app.is_job_running('RENDER') and context.area and context.area.type == 'VIEW_3D'
+                    and context.space_data.region_3d.view_perspective != 'CAMERA')
+
+    def run(self, context):
+        rendering.prepare(context.scene, scene_models.selected(context))
+        region = next(r for r in context.area.regions if r.type == 'WINDOW')
+        with context.temp_override(region=region):
+            return bpy.ops.view3d.camera_to_view()
+
+
+class HZZ_OT_look_camera(CharacterOperation, bpy.types.Operator):
+    bl_idname = 'hzz.look_camera'
+    bl_label = '看向相机'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        root = scene_models.selected(context)
+        return bool(root and not bpy.app.is_job_running('RENDER') and context.scene.camera and gaze.eye_bones(root))
+
+    def run(self, context):
+        root = scene_models.ensure(scene_models.selected(context), context)
+        gaze.set_gaze(root, context.scene, not root.hzz_character.look_camera)
 
 
 class HZZ_OT_render(CheckedOperation, bpy.types.Operator):
     bl_idname = 'hzz.render'
-    bl_label = '渲染当前场景'
-    bl_description = '调用 Blender 原生渲染，使用当前场景的相机与输出设置'
+    bl_label = '渲染'
+    bl_description = '使用 Blender 当前场景、相机和原生输出设置'
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.scene.camera and not bpy.app.is_job_running('RENDER'))
 
     def run(self, context):
-        target = context.scene
-        if not target.camera:
-            raise ValueError('当前场景没有相机，请指定相机或创建预览场景')
-        if target.render.engine != 'BLENDER_EEVEE':
-            raise ValueError('基础 Toon 使用 EEVEE，请进入预览场景或选择 EEVEE')
-        result = bpy.ops.render.render('INVOKE_DEFAULT', scene=target.name)
-        if result not in ({'FINISHED'}, {'RUNNING_MODAL'}):
-            raise RuntimeError('Blender 未启动渲染')
+        return rendering.start(context.scene, invoke=not bpy.app.background)
 
 
-CLASSES = (HZZ_OT_import, HZZ_OT_scan, HZZ_OT_apply, HZZ_OT_restore, HZZ_OT_surface_defaults,
-           HZZ_OT_outline_defaults, HZZ_OT_preview, HZZ_OT_texture, HZZ_OT_face_lightmap, HZZ_OT_render)
+CLASSES = (HZZ_OT_import, HZZ_OT_apply, HZZ_OT_restore, HZZ_OT_reset, HZZ_OT_toggle_bones,
+           HZZ_OT_load_scene, HZZ_OT_remove_scene, HZZ_OT_light, HZZ_OT_align_camera, HZZ_OT_look_camera, HZZ_OT_render)
 
 
 def register():

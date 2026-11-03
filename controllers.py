@@ -66,6 +66,7 @@ def face_group(profile, head):
     tree['hzz_kind'] = 'face'
     for name, direction, kind in (('Geometry', 'INPUT', 'NodeSocketGeometry'),
         ('Sun', 'INPUT', 'NodeSocketObject'), ('Head', 'INPUT', 'NodeSocketObject'),
+        ('Positional', 'INPUT', 'NodeSocketBool'),
         ('Geometry', 'OUTPUT', 'NodeSocketGeometry')):
         tree.interface.new_socket(name=name, in_out=direction, socket_type=kind)
     graph = Graph(tree)
@@ -82,10 +83,22 @@ def face_group(profile, head):
         rotate = graph.node('FunctionNodeRotateVector', name + ' World Direction')
         rotate.inputs['Vector'].default_value = axis
         graph.link(info.outputs['Rotation'], rotate.inputs['Rotation'])
+        direction = rotate.outputs['Vector']
+        if name == 'HZZ_SUN':
+            origin = graph.node('GeometryNodeObjectInfo', 'Head Light Origin')
+            origin.transform_space = 'ORIGINAL'
+            graph.link(source.outputs['Head'], origin.inputs['Object'])
+            positional = graph.vector('NORMALIZE', graph.vector('SUBTRACT', info.outputs['Location'], origin.outputs['Location']))
+            switch = graph.node('GeometryNodeSwitch', 'Light Type')
+            switch.input_type = 'VECTOR'
+            graph.link(source.outputs['Positional'], switch.inputs['Switch'])
+            graph.link(direction, switch.inputs['False'])
+            graph.link(positional, switch.inputs['True'])
+            direction = switch.outputs[0]
         store = graph.node('GeometryNodeStoreNamedAttribute', name)
         store.data_type, store.domain = 'FLOAT_VECTOR', 'POINT'
         store.inputs['Name'].default_value = name
-        graph.link(rotate.outputs['Vector'], store.inputs['Value'])
+        graph.link(direction, store.inputs['Value'])
         graph.link(geometry, store.inputs['Geometry'])
         geometry = store.outputs['Geometry']
     graph.link(geometry, output.inputs['Geometry'])
@@ -101,3 +114,5 @@ def set_modifier(modifier, name, value):
 def update_modifier(modifier, profile):
     set_modifier(modifier, 'Sun', profile.sun)
     set_modifier(modifier, 'Head', profile.head)
+    if any(s.name == 'Positional' for s in modifier.node_group.interface.items_tree):
+        set_modifier(modifier, 'Positional', bool(profile.sun and profile.sun.data.type != 'SUN'))

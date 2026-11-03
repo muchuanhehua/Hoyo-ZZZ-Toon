@@ -1,4 +1,4 @@
-Hoyo-ZZZ-Toon 0.4.0
+Hoyo-ZZZ-Toon 0.6.0
 
 Copyright 2026 muchuanhehua
 Distributed under GPL-3.0-only. See LICENSE.
@@ -10,7 +10,10 @@ Research references:
 - MMD Tools: public PMX import API and PMX shininess-to-roughness convention;
   installed separately by the user.
   https://github.com/MMD-Blender/blender_mmd_tools
-- Hoyo-GI-Toon: PMX semantics and reversible-data workflow experience.
+- Hoyo-GI-Toon (same author, GPL-3.0): adapted six-panel workflow, scene preset lifecycle,
+  lighting presets, native camera/render helpers and optional eye tracking.
+  Its two prepared environment collections and scenes.json are bundled locally.
+  https://github.com/muchuanhehua/Hoyo-GI-Toon
 - VRM Consortium / MToon: separation of light-direction shading and lit/shade colors.
   https://github.com/vrm-c/vrm-specification/blob/master/specification/VRMC_materials_mtoon-1.0/README.md
 
@@ -30,9 +33,11 @@ Adapted GPL-3.0 source formulas:
   are not included. The upstream GPL license is compatible with this GPLv3 work.
 
 This candidate contains native-node builders and its own workflow code.
-Research .blend files, character models, game textures and private verification assets
-are not included. BASIC remains a generic face approximation; SDF mode uses a
-separately selected, UV-matched shared Lightmap. The SDF direction curve, mirrored
+Character models, character textures and private verification assets are not included.
+The two environment assets retain their upstream metadata; see assets/scenes.json.
+BASIC remains a generic face approximation; SDF mode uses a shared Lightmap
+resolved from the selected FBX resources and verified against face UVs.
+The SDF direction curve, mirrored
 sampling and R/Alpha mask math were studied from the local Kythera V2 reference.
 Its native-light receiver and reversible PMX integration are implemented here.
 The frozen 0.3 palette studied the native Lit/Shadow HSV curves. Versions 0.4/0.5

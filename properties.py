@@ -21,7 +21,7 @@ ROLES = (
     ('EXPRESSION', '表情叠层', '保留实际表情网格、颜色与透明度'),
 )
 
-SURFACE_CONTROLS = ('body_shadow_color', 'skin_shadow_color', 'light_color_strength', 'pmx_toon_strength',
+SURFACE_CONTROLS = ('body_shadow_color', 'skin_shadow_color', 'light_color_strength',
     'specular', 'surface_threshold', 'surface_softness', 'bias_strength', 'normal_strength',
     'surface_data_strength', 'scene_shadow_strength', 'reflection_strength', 'hair_highlights', 'rim_strength',
     'surface_key_color', 'surface_mid_color', 'skin_key_color', 'face_key_color', 'shadow_color',
@@ -39,8 +39,68 @@ def update_profile(self, context):
         refresh(root)
 
 
+def update_resources(self, context):
+    if self.managed and not self.building:
+        self.report = '资源目录已改变，点击应用材质自动匹配'
+
+
+def update_role(self, context):
+    profile = self.id_data.hzz_character
+    if not profile.building:
+        profile.report = '材质用途已改变，点击应用材质更新'
+
+
+def outline_get(self):
+    from .outlines import DEFAULT_WIDTH_RATIO
+    return self.outline_width / max(self.height * DEFAULT_WIDTH_RATIO, 1e-8)
+
+
+def outline_set(self, value):
+    from .outlines import DEFAULT_WIDTH_RATIO
+    self.outline_width = self.height * DEFAULT_WIDTH_RATIO * value
+
+
+def shadow_set(self, value):
+    self.building = True
+    try:
+        self.shadow_position = value
+        self.surface_threshold = value - .24
+    finally:
+        self.building = False
+    update_profile(self, bpy.context)
+
+
+def transition_set(self, value):
+    self.building = True
+    try:
+        self.shadow_softness = .025 * value
+        self.surface_softness = .06 * value
+    finally:
+        self.building = False
+    update_profile(self, bpy.context)
+
+
+def update_model(self, context):
+    from .scene_models import remember_active
+    remember_active(context)
+
+
+def update_lighting(self, context):
+    from .lighting import update_parameters
+    if context and context.scene == self.id_data:
+        update_parameters(context.scene, self)
+
+
+def update_light(self, context):
+    from .lighting import select_light
+    select_light(self)
+    for obj in self.objects:
+        if obj.hzz_character.uid:
+            obj.hzz_character.sun = self.hzz_light
+
+
 def sun_poll(self, obj):
-    return obj.type == 'LIGHT' and obj.data.type == 'SUN'
+    return obj.type == 'LIGHT' and (not isinstance(self, bpy.types.Scene) or obj.name in self.objects)
 
 
 class HZZSlot(PropertyGroup):
@@ -59,13 +119,15 @@ class HZZMesh(PropertyGroup):
 class HZZMaterial(PropertyGroup):
     source: PointerProperty(type=bpy.types.Material)
     generated: PointerProperty(type=bpy.types.Material)
-    role: EnumProperty(name='材质用途', items=ROLES)
+    sdf_enabled: BoolProperty(default=True, options={'HIDDEN'})
+    role: EnumProperty(name='材质用途', items=ROLES, update=update_role)
     evidence: StringProperty()
     diagnostic: StringProperty()
     tint: FloatVectorProperty(name='颜色', subtype='COLOR', size=3,
         default=(1, 1, 1), min=0, max=1, update=update_profile)
-    base_override: PointerProperty(name='替换基础贴图', type=bpy.types.Image)
-    use_toon: BoolProperty(name='使用 PMX Toon', default=True)
+    brightness: FloatProperty(name='亮度', default=1, min=0, max=3, soft_max=2, update=update_profile)
+    saturation: FloatProperty(name='饱和度', default=1, min=0, max=2, update=update_profile)
+    opacity: FloatProperty(name='不透明度', default=1, min=0, max=1, update=update_profile)
     use_sphere: BoolProperty(name='使用 PMX Sphere', default=True)
 
 
@@ -75,10 +137,11 @@ class HZZCharacter(PropertyGroup):
     managed: BoolProperty()
     building: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
     source_file: StringProperty(subtype='FILE_PATH')
-    surface_directory: StringProperty(name='原始增强贴图目录', subtype='DIR_PATH',
-        description='包含配套 _D / _M / _A / _N 的资源目录；按实际材质 UV 像素核对，重新应用后生效')
-    surface_evidence: StringProperty(name='已核对 UV 对应', subtype='FILE_PATH',
-        description='可选的共享资产对应 JSON；核对基础图内容、UV 和四张资源图摘要，不含角色风格参数')
+    fbx_directory: StringProperty(name='FBX 目录', subtype='DIR_PATH', update=update_resources,
+        description='可选：选择配套 FBX 资源文件夹，自动读取材质引用与 UV；空目录使用 PMX 基础渲染')
+    resource_report: StringProperty()
+    build_version: IntProperty(default=0)
+    preview_error: StringProperty()
     rig: PointerProperty(type=bpy.types.Object)
     meshes: CollectionProperty(type=HZZMesh)
     materials: CollectionProperty(type=HZZMaterial)
@@ -113,7 +176,6 @@ class HZZCharacter(PropertyGroup):
     ambient_tint_strength: FloatProperty(name='暗部环境染色', default=1, min=0, max=2,
         description='共用冷色环境补偿；受原色亮度、饱和度与明暗区域约束', update=update_profile)
     light_color_strength: FloatProperty(name='灯光颜色影响', default=.35, min=0, max=1, update=update_profile)
-    pmx_toon_strength: FloatProperty(name='PMX 色带混合', default=0, min=0, max=1, update=update_profile)
     hair_shadow_shift: FloatProperty(name='头发明暗偏移', default=.33, min=-1, max=1, update=update_profile)
     specular: FloatProperty(name='表面高光', default=.2, min=0, max=1, update=update_profile)
     surface_threshold: FloatProperty(name='表面阴影位置', default=.18, min=-1, max=1, update=update_profile)
@@ -139,23 +201,77 @@ class HZZCharacter(PropertyGroup):
     head_yaw: FloatProperty(name='脸部方向偏移', default=0, subtype='ANGLE',
         min=-3.141593, max=3.141593, update=update_profile)
     report: StringProperty()
+    outline: FloatProperty(name='描边粗细', min=0, max=20, soft_max=3, precision=2,
+        get=outline_get, set=outline_set, description='相对模型身高的倍率：1 为默认线宽，0 关闭')
+    shadow_balance: FloatProperty(name='阴影位置', min=0, max=1,
+        get=lambda self: self.shadow_position, set=shadow_set)
+    shadow_transition: FloatProperty(name='明暗过渡', min=.1, max=5,
+        get=lambda self: self.shadow_softness / .025, set=transition_set)
+    look_camera: BoolProperty(default=False)
 
 
 def model_poll(self, obj):
-    return getattr(obj, 'mmd_type', '') == 'ROOT' and obj.name in self.objects
+    from .scene_models import model_root
+    return obj.name in self.objects and model_root(obj)
 
 
-CLASSES = (HZZSlot, HZZMesh, HZZMaterial, HZZCharacter)
+class HZZGazeBone(PropertyGroup):
+    bone: StringProperty()
+    helper: PointerProperty(type=bpy.types.Object)
+    active_constraint: StringProperty()
+
+
+class HZZScenePresetSettings(PropertyGroup):
+    preset: StringProperty()
+    uid: StringProperty()
+    collection: PointerProperty(type=bpy.types.Collection)
+    previous_world: PointerProperty(type=bpy.types.World)
+    previous_camera: PointerProperty(type=bpy.types.Object)
+    previous_light: PointerProperty(type=bpy.types.Object)
+    world: PointerProperty(type=bpy.types.World)
+    camera: PointerProperty(type=bpy.types.Object)
+    light: PointerProperty(type=bpy.types.Object)
+    muted_light: PointerProperty(type=bpy.types.Object)
+    muted_render: BoolProperty()
+    muted_viewport: BoolProperty()
+
+
+class HZZLightParameters(PropertyGroup):
+    key: StringProperty()
+    energy: FloatProperty(name='强度', default=2, min=0, soft_max=10, update=update_lighting)
+    color: FloatVectorProperty(name='颜色', subtype='COLOR', size=3, default=(1, 1, 1), min=0, max=1, update=update_lighting)
+    azimuth: FloatProperty(name='光向方位', subtype='ANGLE', min=-3.141593, max=3.141593, update=update_lighting)
+    elevation: FloatProperty(name='光向高度', subtype='ANGLE', min=-1.570796, max=1.570796, update=update_lighting)
+    angle: FloatProperty(name='光源角度', subtype='ANGLE', default=.1, min=0, max=3.141593, update=update_lighting)
+
+
+class HZZLightingSettings(PropertyGroup):
+    selected: EnumProperty(name='打光预设', items=(('DEFAULT', '默认光', ''), ('SOFT', '柔和正面', ''),
+                         ('SIDE', '侧面塑形', ''), ('BACK', '背光轮廓', '')))
+    active: StringProperty()
+    presets: CollectionProperty(type=HZZLightParameters)
+
+
+HZZCharacter.__annotations__['gaze_bones'] = CollectionProperty(type=HZZGazeBone)
+CLASSES = (HZZSlot, HZZMesh, HZZMaterial, HZZGazeBone, HZZCharacter,
+           HZZScenePresetSettings, HZZLightParameters, HZZLightingSettings)
 
 
 def register():
+    from .scene_presets import PRESET_ITEMS
     for cls in CLASSES:
         bpy.utils.register_class(cls)
     bpy.types.Object.hzz_character = PointerProperty(type=HZZCharacter)
-    bpy.types.Scene.hzz_model = PointerProperty(name='模型', type=bpy.types.Object, poll=model_poll)
+    bpy.types.Scene.hzz_model = PointerProperty(name='角色主体', type=bpy.types.Object, poll=model_poll, update=update_model)
+    bpy.types.Scene.hzz_light = PointerProperty(name='主光', type=bpy.types.Object, poll=sun_poll, update=update_light)
+    bpy.types.Scene.hzz_lighting = PointerProperty(type=HZZLightingSettings)
+    bpy.types.Scene.hzz_scene = PointerProperty(type=HZZScenePresetSettings)
+    bpy.types.Scene.hzz_scene_preset = EnumProperty(name='场景预设', items=PRESET_ITEMS)
 
 
 def unregister():
+    for name in ('hzz_scene_preset', 'hzz_scene', 'hzz_lighting', 'hzz_light'):
+        delattr(bpy.types.Scene, name)
     del bpy.types.Scene.hzz_model
     del bpy.types.Object.hzz_character
     for cls in reversed(CLASSES):

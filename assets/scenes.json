@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "presets": [
+    {
+      "id": "CITY_TERRACE",
+      "name": "城市露台",
+      "file": "scene_city_terrace.blend",
+      "collection": "HGT • 城市露台",
+      "key_light": "Daylight / warm key",
+      "source": "City-Terrace/city-terrace-environment.blend",
+      "source_sha256": "cbc7bae851c446567833d9f97296e7bd9c0cfc31a363d36818d826adbacb6ae2"
+    },
+    {
+      "id": "STAGE",
+      "name": "舞台",
+      "file": "scene_stage.blend",
+      "collection": "HGT • 舞台",
+      "key_light": "STAGE_LIGHT__key_shadow",
+      "source": "HSR-Scene/stage-only.blend",
+      "source_sha256": "4ed174b34fe765cbfa26e533f9992a0e673eb238e6da6dea1fd29a05cacc547a"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 schema_version = "1.0.0"
 id = "hoyo_zzz_toon"
-version = "0.5.2"
+version = "0.6.0"
 name = "Hoyo-ZZZ-Toon"
-tagline = "面向 MMD 流程的绝区零 PMX 基础 Toon 与角色预览"
+tagline = "绝区零 PMX 自动材质、局部调色与场景预览"
 maintainer = "muchuanhehua"
 type = "add-on"
 blender_version_min = "5.2.0"
@@ -10,7 +10,7 @@ license = ["SPDX:GPL-3.0-only"]
 tags = ["Material", "Import-Export", "Render"]
 
 [permissions]
-files = "读取用户选择的 PMX 和本地贴图"
+files = "读取用户选择的 PMX、FBX 目录与本地贴图"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", ".git/", ".verification/", ".build/", "tools/", "release/", "design/", "AGENTS.md", ".gitignore"]

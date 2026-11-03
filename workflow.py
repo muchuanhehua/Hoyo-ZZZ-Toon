@@ -12,7 +12,7 @@ def scan(root, context):
     if p.managed:
         raise ValueError('请先恢复原材质，再重新扫描源模型')
     rig, meshes = pmx.model_parts(root)
-    previous = {b.source.as_pointer(): (b.role, tuple(b.tint), b.base_override, b.use_toon, b.use_sphere)
+    previous = {b.source.as_pointer(): (b.role, tuple(b.tint), b.use_sphere, b.brightness, b.saturation, b.opacity)
                 for b in p.materials if b.source}
     p.building = True
     try:
@@ -37,7 +37,7 @@ def scan(root, context):
                 binding.role, binding.evidence = pmx.classify(source)
                 old = previous.get(source.as_pointer())
                 if old:
-                    binding.role, binding.tint, binding.base_override, binding.use_toon, binding.use_sphere = old
+                    binding.role, binding.tint, binding.use_sphere, binding.brightness, binding.saturation, binding.opacity = old
         low, high = pmx.bounds(meshes)
         p.height = max(high.z - low.z, .01)
         p.outline_width = p.height * outlines.DEFAULT_WIDTH_RATIO
@@ -52,10 +52,10 @@ def scan(root, context):
         p.building = False
 
 
-def validate(root):
+def validate(root, check_face=True):
     p = root.hzz_character
     if not p.uid or not p.meshes:
-        raise ValueError('请先扫描模型')
+        raise ValueError('角色尚未接入，请点击应用材质')
     if p.schema != 1:
         raise ValueError('该角色的配置版本不受支持')
     by_source = {b.source.as_pointer(): b for b in p.materials if b.source}
@@ -97,11 +97,11 @@ def validate(root):
     if p.face_mode == 'SDF' and not has_face:
         raise ValueError('SDF 模式需要至少一个指定为 FACE 的材质')
     if any(data.role not in pmx.UNLIT | {'SKIP'} for data in descriptions.values()):
-        if not p.sun or p.sun.type != 'LIGHT' or p.sun.data.type != 'SUN':
-            raise ValueError('请指定角色主光，或先创建独立预览场景')
+        if not p.sun or p.sun.type != 'LIGHT':
+            raise ValueError('请在打光面板指定主光')
     if has_face:
         controllers.rest_frame(p)
-        if p.face_mode == 'SDF':
+        if p.face_mode == 'SDF' and check_face:
             face.validate_image(p.face_lightmap)
             if any(data.role == 'FACE' and not data.uv for data in descriptions.values()):
                 raise ValueError('SDF 模式需要脸部的有效 UV，不能用生成坐标代替')
@@ -139,16 +139,19 @@ def owned_modifiers(obj, uid):
 
 def apply(root, context):
     p = root.hzz_character
-    descriptions = validate(root)
+    descriptions = validate(root, check_face=False)
     before = ownership.snapshot()
     old_head, was_managed = p.head, p.managed
+    old_face = p.face_mode, p.face_lightmap, p.resource_report
+    old_sdf = [b.sdf_enabled for b in p.materials]
     old_generated = [b.generated for b in p.materials]
     states = [(e, e.object.data, e.derived, [(s.link, s.material) for s in e.object.material_slots]) for e in p.meshes]
     new_modifiers, old_modifiers = [], [(e.object, m) for e in p.meshes for m in owned_modifiers(e.object, p.uid)]
     p.building = True
     try:
         cache = basic.ImageCache(p.uid)
-        surface_plans, surface_messages = surface_inputs.match(p, descriptions)
+        from . import resources
+        surface_plans, surface_messages = resources.match(p, descriptions)
         replacements = {b.source.as_pointer(): basic.build(descriptions[b.source.as_pointer()], b, p, cache,
                         surface_plans.get(b.source.as_pointer()))
                         for b in p.materials if b.role != 'SKIP'}
@@ -196,6 +199,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
+        p.build_version = 6
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived
@@ -204,6 +208,9 @@ def apply(root, context):
                 if link == 'OBJECT':
                     slot.material = material
         p.head, p.managed = old_head, was_managed
+        p.face_mode, p.face_lightmap, p.resource_report = old_face
+        for binding, enabled in zip(p.materials, old_sdf):
+            binding.sdf_enabled = enabled
         for binding, generated in zip(p.materials, old_generated):
             binding.generated = generated
         for obj, modifier in new_modifiers:
@@ -282,5 +289,5 @@ def export_profile(root):
             'face_lightmap': p.face_lightmap.name if p.face_lightmap else None,
             'head_bone': p.head_bone, 'head_yaw': p.head_yaw,
             'materials': [{'name': b.source.name, 'role': b.role, 'evidence': b.evidence,
-                           'use_toon': b.use_toon, 'use_sphere': b.use_sphere,
+                           'use_sphere': b.use_sphere,
                            'diagnostic': b.diagnostic} for b in p.materials]}

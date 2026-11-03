@@ -28,7 +28,7 @@ def build(data, binding, profile, cache, surface_plan=None):
     material.use_nodes = True
     material['hzz_role'] = data.role
     material['hzz_source'] = data.source.name
-    material['hzz_face_mode'] = profile.face_mode if data.role == 'FACE' else 'NONE'
+    material['hzz_face_mode'] = ('SDF' if profile.face_mode == 'SDF' and binding.sdf_enabled else 'BASIC') if data.role == 'FACE' else 'NONE'
     material.node_tree.nodes.clear()
     graph = Graph(material.node_tree)
     uv = graph.uv(data.uv)
@@ -38,13 +38,19 @@ def build(data, binding, profile, cache, surface_plan=None):
     color = graph.mix(color, source_color, mode='MULTIPLY')
     tint = graph.color('HZZ Tint', binding.tint)
     color = graph.mix(color, tint, mode='MULTIPLY')
+    adjust = graph.node('ShaderNodeHueSaturation', 'HZZ Local Color')
+    graph.link(color, adjust.inputs['Color'])
+    adjust.inputs['Saturation'].default_value = binding.saturation
+    adjust.inputs['Value'].default_value = binding.brightness
+    color = adjust.outputs['Color']
     alpha_value = graph.value('PMX Alpha', data.alpha)
     alpha = graph.math('MULTIPLY', base.outputs['Alpha'], alpha_value) if base else alpha_value
+    alpha = graph.math('MULTIPLY', alpha, graph.value('HZZ Opacity', binding.opacity))
     if data.role == 'OVERLAY':
         alpha = graph.math('MULTIPLY', alpha, graph.gray(color))
     if data.role not in UNLIT:
         if data.role == 'FACE':
-            color = face_color(graph, color, uv, data, profile, cache)
+            color = face_color(graph, color, uv, data, profile, cache, binding.sdf_enabled)
         else:
             color = body_color(graph, color, data, profile, cache, surface_plan)
     if 'sphere' in data.textures:
@@ -69,14 +75,8 @@ def build(data, binding, profile, cache, surface_plan=None):
     return material
 
 
-def toon(graph, data, cache, lit):
-    node = texture(graph, cache.load(data.textures['toon']), graph.combine(.5, lit), 'PMX Toon')
-    node.extension = 'EXTEND'
-    return node.outputs['Color']
-
-
-def face_color(graph, color, uv, data, profile, cache):
-    if profile.face_mode == 'SDF':
+def face_color(graph, color, uv, data, profile, cache, sdf_enabled=True):
+    if profile.face_mode == 'SDF' and sdf_enabled:
         lit = face.lighting(graph, uv, profile, cache)
     else:
         factor = lighting(graph, 'FACE')
@@ -85,18 +85,12 @@ def face_color(graph, color, uv, data, profile, cache):
         lit = graph.smooth(factor, graph.math('SUBTRACT', position, softness), graph.math('ADD', position, softness))
     shadow = graph.color('HZZ Shadow Color', profile.shadow_color)
     color = graph.mix(color, graph.mix(shadow, (1, 1, 1, 1), lit), mode='MULTIPLY')
-    if 'toon' in data.textures:
-        color = graph.mix(color, toon(graph, data, cache, lit), mode='MULTIPLY')
     color = graph.mix(color, graph.color('HZZ Face Key Color', profile.face_key_color), mode='MULTIPLY')
     return color
 
 
 def body_color(graph, albedo, data, profile, cache, plan):
-    lit, color = surface.build(graph, albedo, data, profile, cache, plan)
-    if 'toon' in data.textures:
-        source_shade = graph.mix(albedo, toon(graph, data, cache, lit), mode='MULTIPLY')
-        strength = graph.value('HZZ PMX Toon Strength', profile.pmx_toon_strength)
-        color = graph.mix(color, source_shade, strength)
+    _lit, color = surface.build(graph, albedo, data, profile, cache, plan)
     return color
 
 
@@ -170,10 +164,12 @@ def build_outline(data, profile, cache):
 def refresh(material, binding, profile):
     nodes = material.node_tree.nodes
     nodes['HZZ Tint'].outputs[0].default_value = (*binding.tint, 1)
+    if 'HZZ Local Color' in nodes:
+        nodes['HZZ Local Color'].inputs['Saturation'].default_value = binding.saturation
+        nodes['HZZ Local Color'].inputs['Value'].default_value = binding.brightness
+        nodes['HZZ Opacity'].outputs[0].default_value = binding.opacity
     if material.node_tree.get('hzz_body_version', 0) >= 2:
         surface.refresh(material, profile)
-        if 'HZZ PMX Toon Strength' in nodes:
-            nodes['HZZ PMX Toon Strength'].outputs[0].default_value = profile.pmx_toon_strength
         return
     if material['hzz_role'] not in UNLIT:
         if material.get('hzz_face_mode') != 'SDF':
@@ -193,5 +189,3 @@ def refresh(material, binding, profile):
             nodes['HZZ Body Shadow Color'].outputs[0].default_value = (*profile.body_shadow_color, 1)
             nodes['HZZ Light Color Strength'].outputs[0].default_value = profile.light_color_strength
             nodes['HZZ Hair Shadow Shift'].outputs[0].default_value = profile.hair_shadow_shift if material['hzz_role'] == 'HAIR' else 0
-            if 'HZZ PMX Toon Strength' in nodes:
-                nodes['HZZ PMX Toon Strength'].outputs[0].default_value = profile.pmx_toon_strength

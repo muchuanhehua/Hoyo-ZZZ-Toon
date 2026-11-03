@@ -1,8 +1,7 @@
-"""Read actual MMD references and preserve PMX Toon/Sphere/Alpha semantics."""
+"""Read MMD base/Sphere/Alpha inputs; preserve source materials for restoration."""
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
-import sys
 import unicodedata
 import bpy
 from mathutils import Vector
@@ -187,18 +186,6 @@ def available(image):
     return bool(image.packed_file or image.source == 'GENERATED' or image_path(image).is_file())
 
 
-def shared_toon(source):
-    data = source.mmd_material
-    if not data.is_shared_toon_texture:
-        return None
-    package = sys.modules.get(type(data).__module__.split('.properties.')[0])
-    if package and getattr(package, '__file__', None):
-        path = Path(package.__file__).parent / 'externals' / 'MikuMikuDance' / f'toon{data.shared_toon_texture + 1:02d}.bmp'
-        if path.is_file():
-            return path
-    raise ValueError(f'{source.name} 缺少 MMD Tools 共享 Toon {data.shared_toon_texture + 1:02d}')
-
-
 def resolve(binding, uv, uv_extra):
     source = binding.source
     m = source.mmd_material
@@ -212,19 +199,13 @@ def resolve(binding, uv, uv_extra):
     if binding.role == 'SKIP':
         return result
     inputs = {'base': ('mmd_base_tex', True),
-              'toon': ('mmd_toon_tex', binding.use_toon and binding.role not in UNLIT),
               'sphere': ('mmd_sphere_tex', binding.use_sphere and result.sphere_mode != '0')}
     for role, (node_name, enabled) in inputs.items():
         node = source.node_tree.nodes.get(node_name) if source.node_tree else None
         image = node.image if node else None
-        if role == 'base' and binding.base_override:
-            image = binding.base_override
         if not enabled:
             if image:
                 result.warnings.append(f'{role} 已在本材质设置中关闭')
-            continue
-        if role == 'toon' and m.is_shared_toon_texture:
-            result.textures[role] = shared_toon(source)
             continue
         if image and not available(image):
             raise ValueError(f'{source.name} 缺少 {role} 贴图：{image_path(image)}')
