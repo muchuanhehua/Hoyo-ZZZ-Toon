@@ -57,6 +57,8 @@ def setup_materials(root, context):
     previous_suns = {obj: obj.hzz_character.sun for obj in scene.objects if obj.hzz_character.uid}
     light_visibility = {obj: (obj.hide_render, obj.hide_viewport) for obj in scene.objects if obj.type == 'LIGHT'}
     old_active, old_selected = scene.hzz_lighting.active, scene.hzz_lighting.selected
+    light_state = {name: getattr(scene.hzz_scene, name) for name in
+                   ('muted_light', 'muted_render', 'muted_viewport', 'key_muted', 'key_render', 'key_viewport')}
     preset_count = len(scene.hzz_lighting.presets)
     try:
         light = scene.hzz_light
@@ -68,6 +70,7 @@ def setup_materials(root, context):
             else:
                 light = lighting.default_light(scene)
         p.sun = light
+        lighting.select_light(scene)
         rendering.prepare(scene, root)
         workflow.apply(root, context)
     except Exception:
@@ -77,6 +80,8 @@ def setup_materials(root, context):
         for obj, flags in light_visibility.items():
             obj.hide_render, obj.hide_viewport = flags
         scene.hzz_lighting.active, scene.hzz_lighting.selected = old_active, old_selected
+        for name, value in light_state.items():
+            setattr(scene.hzz_scene, name, value)
         while len(scene.hzz_lighting.presets) > preset_count:
             scene.hzz_lighting.presets.remove(len(scene.hzz_lighting.presets) - 1)
         bpy.data.batch_remove(ids=ownership.created(before))
@@ -124,6 +129,31 @@ class HZZ_OT_reset(CharacterOperation, bpy.types.Operator):
             for name in (*SURFACE_CONTROLS, *OUTLINE_CONTROLS, 'shadow_position', 'shadow_softness'):
                 p.property_unset(name)
             p.outline_width = p.height * DEFAULT_WIDTH_RATIO
+        finally:
+            p.building = False
+        workflow.refresh(root)
+
+
+class HZZ_OT_reset_skin_colors(CharacterOperation, bpy.types.Operator):
+    bl_idname = 'hzz.reset_skin_colors'
+    bl_label = '重置肤色'
+    bl_description = '只恢复统一肤色调节，保留单材质调色、材质参数与灯光'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        root = scene_models.selected(context)
+        return bool(root and root.hzz_character.managed and root.hzz_character.build_version >= 8
+                    and not bpy.app.is_job_running('RENDER'))
+
+    def run(self, context):
+        from .properties import SKIN_COLOR_CONTROLS
+        root = scene_models.selected(context)
+        p = root.hzz_character
+        p.building = True
+        try:
+            for name in SKIN_COLOR_CONTROLS:
+                p.property_unset(name)
         finally:
             p.building = False
         workflow.refresh(root)
@@ -218,7 +248,7 @@ class HZZ_OT_render(CheckedOperation, bpy.types.Operator):
         return rendering.start(context.scene, invoke=not bpy.app.background)
 
 
-CLASSES = (HZZ_OT_import, HZZ_OT_apply, HZZ_OT_restore, HZZ_OT_reset, HZZ_OT_toggle_bones,
+CLASSES = (HZZ_OT_import, HZZ_OT_apply, HZZ_OT_restore, HZZ_OT_reset, HZZ_OT_reset_skin_colors, HZZ_OT_toggle_bones,
            HZZ_OT_load_scene, HZZ_OT_remove_scene, HZZ_OT_light, HZZ_OT_align_camera, HZZ_OT_look_camera, HZZ_OT_render)
 
 

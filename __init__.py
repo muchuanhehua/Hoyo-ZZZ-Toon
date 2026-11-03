@@ -3,7 +3,7 @@
 bl_info = {
     'name': 'Hoyo-ZZZ-Toon',
     'author': 'muchuanhehua',
-    'version': (0, 6, 0),
+    'version': (0, 6, 2),
     'blender': (5, 2, 0),
     'location': 'View3D > Sidebar > Hoyo-ZZZ-Toon',
     'description': '绝区零 PMX 简便渲染、FBX 资源自动对应、共享脸影与描边',

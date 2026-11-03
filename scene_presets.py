@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 import bpy
-from . import ownership, rendering
+from . import ownership, rendering, lighting
 
 ASSETS = Path(__file__).resolve().parent / 'assets'
 PRESETS = {item['id']: item for item in json.loads((ASSETS / 'scenes.json').read_text('utf-8'))['presets']}
@@ -91,7 +91,7 @@ def load(context, preset_id):
     previous = {name: getattr(state, name) for name in state.bl_rna.properties.keys() if name != 'rna_type'}
     pointers = scene.world, scene.camera, scene.hzz_light
     visibility = {light: (light.hide_render, light.hide_viewport)
-                  for light in (state.muted_light, scene.hzz_light) if light}
+                  for light in (state.muted_light, scene.hzz_light, state.light) if light}
     old_collection, old_uid = state.collection, state.uid
     try:
         with bpy.data.libraries.load(str(path), link=False) as (source, target):
@@ -111,11 +111,12 @@ def load(context, preset_id):
             item[OWNER] = uid
         if not old_uid:
             state.previous_world, state.previous_camera, state.previous_light = pointers
+        lighting.restore_scene_key(scene)
         _mute_default_light(scene)
         scene.collection.children.link(collection)
-        scene.world, scene.camera, scene.hzz_light = world, camera, light
         state.collection, state.uid, state.preset = collection, uid, preset_id
         state.world, state.camera, state.light = world, camera, light
+        scene.world, scene.camera, scene.hzz_light = world, camera, light
     except Exception:
         for name, value in previous.items():
             setattr(state, name, value)
@@ -143,6 +144,7 @@ def remove(context):
     if scene.hzz_light == state.light:
         scene.hzz_light = state.previous_light
     restore_default_light(scene)
+    lighting.restore_scene_key(scene)
     for name in state.bl_rna.properties.keys():
         if name != 'rna_type':
             state.property_unset(name)

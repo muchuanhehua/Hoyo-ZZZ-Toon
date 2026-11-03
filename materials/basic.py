@@ -77,16 +77,15 @@ def build(data, binding, profile, cache, surface_plan=None):
 
 def face_color(graph, color, uv, data, profile, cache, sdf_enabled=True):
     if profile.face_mode == 'SDF' and sdf_enabled:
-        lit = face.lighting(graph, uv, profile, cache)
+        lit, received = face.lighting(graph, uv, profile, cache)
     else:
-        factor = lighting(graph, 'FACE')
+        factor, received = lighting(graph, 'FACE')
         position = graph.value('HZZ Shadow Position', profile.shadow_position)
         softness = graph.value('HZZ Shadow Softness', profile.shadow_softness)
         lit = graph.smooth(factor, graph.math('SUBTRACT', position, softness), graph.math('ADD', position, softness))
-    shadow = graph.color('HZZ Shadow Color', profile.shadow_color)
-    color = graph.mix(color, graph.mix(shadow, (1, 1, 1, 1), lit), mode='MULTIPLY')
-    color = graph.mix(color, graph.color('HZZ Face Key Color', profile.face_key_color), mode='MULTIPLY')
-    return color
+    lit = graph.math('MULTIPLY', lit, surface.visibility(graph, received, profile))
+    color = surface.skin_palette(graph, color, lit, profile)
+    return surface.scene_chroma(graph, color, received, profile)
 
 
 def body_color(graph, albedo, data, profile, cache, plan):
@@ -110,8 +109,7 @@ def lighting(graph, role):
         direction = graph.math('ADD', graph.math('MULTIPLY', dot, .5), .5)
         # Shape the face once. Native reception supplies visibility; using the
         # mesh normal again would darken the whole face before the Toon ramp.
-        actual = actual_lighting(graph, attributes['HZZ_SUN'])
-        return graph.math('MINIMUM', direction, actual)
+        return direction, actual_lighting(graph, attributes['HZZ_SUN'])
     return actual_lighting(graph)
 
 
@@ -122,7 +120,7 @@ def actual_lighting(graph, normal=None):
         graph.link(normal, diffuse.inputs['Normal'])
     sample = graph.node('ShaderNodeShaderToRGB', 'Native Light And Shadow')
     graph.link(diffuse.outputs[0], sample.inputs[0])
-    return graph.gray(sample.outputs['Color'])
+    return sample.outputs['Color']
 
 
 def build_outline(data, profile, cache):
@@ -176,9 +174,12 @@ def refresh(material, binding, profile):
             nodes['HZZ Shadow Position'].outputs[0].default_value = profile.shadow_position
             nodes['HZZ Shadow Softness'].outputs[0].default_value = profile.shadow_softness
         if material['hzz_role'] == 'FACE':
-            nodes['HZZ Shadow Color'].outputs[0].default_value = (*profile.shadow_color, 1)
-            if 'HZZ Face Key Color' in nodes:
-                nodes['HZZ Face Key Color'].outputs[0].default_value = (*profile.face_key_color, 1)
+            if 'HZZ Skin Key Color' in nodes:
+                surface.refresh_skin(nodes, profile)
+            else:
+                nodes['HZZ Shadow Color'].outputs[0].default_value = (*profile.shadow_color, 1)
+                if 'HZZ Face Key Color' in nodes:
+                    nodes['HZZ Face Key Color'].outputs[0].default_value = (*profile.face_key_color, 1)
         else:
             nodes['HZZ Specular'].outputs[0].default_value = profile.specular * (1.5 if material['hzz_role'] == 'HAIR' else 1)
             # Saved 0.2 materials remain editable until the explicit reapply.

@@ -17,10 +17,36 @@ def active_parameters(scene):
 
 
 def select_light(scene):
+    selected = scene.hzz_light
+    if (selected and selected.get('hzz_scene_light') and selected.type == 'LIGHT'
+            and tuple(selected.users_scene) == (scene,)):
+        from .scene_presets import restore_default_light
+        restore_default_light(scene)
+        selected.hide_render = selected.hide_viewport = False
     for light in scene.objects:
         if (light.get('hzz_scene_light') and light.type == 'LIGHT' and light != scene.hzz_light
                 and tuple(light.users_scene) == (scene,)):
             light.hide_render = light.hide_viewport = True
+    state, selected = scene.hzz_scene, scene.hzz_light
+    key = state.light
+    if not key or key.get('hzz_scene_owner') != state.uid:
+        return
+    if selected == key or selected is None:
+        restore_scene_key(scene)
+    elif tuple(key.users_scene) == (scene,) and not state.key_muted:
+        state.key_render, state.key_viewport = key.hide_render, key.hide_viewport
+        state.key_muted = True
+        key.hide_render = key.hide_viewport = True
+
+
+def restore_scene_key(scene):
+    state, key = scene.hzz_scene, scene.hzz_scene.light
+    if key and state.key_muted:
+        if key.hide_render:
+            key.hide_render = state.key_render
+        if key.hide_viewport:
+            key.hide_viewport = state.key_viewport
+    state.key_muted = False
 
 
 def update_parameters(scene, parameters):

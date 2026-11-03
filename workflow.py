@@ -144,11 +144,19 @@ def apply(root, context):
     old_head, was_managed = p.head, p.managed
     old_face = p.face_mode, p.face_lightmap, p.resource_report
     old_sdf = [b.sdf_enabled for b in p.materials]
+    old_skin = {name: (p.is_property_set(name), tuple(getattr(p, name)))
+                for name in ('skin_key_color', 'skin_shadow_color')}
     old_generated = [b.generated for b in p.materials]
     states = [(e, e.object.data, e.derived, [(s.link, s.material) for s in e.object.material_slots]) for e in p.meshes]
     new_modifiers, old_modifiers = [], [(e.object, m) for e in p.meshes for m in owned_modifiers(e.object, p.uid)]
     p.building = True
     try:
+        if p.build_version < 7:
+            # Migrate previous defaults only; keep deliberately authored shared colours.
+            for name, previous in (('skin_key_color', (1.02, .77, .79)),
+                                   ('skin_shadow_color', (.76, .44, .54))):
+                if all(abs(a - b) < 1e-6 for a, b in zip(getattr(p, name), previous)):
+                    p.property_unset(name)
         cache = basic.ImageCache(p.uid)
         from . import resources
         surface_plans, surface_messages = resources.match(p, descriptions)
@@ -199,7 +207,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 6
+        p.build_version = 8
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived
@@ -209,6 +217,11 @@ def apply(root, context):
                     slot.material = material
         p.head, p.managed = old_head, was_managed
         p.face_mode, p.face_lightmap, p.resource_report = old_face
+        for name, (was_set, value) in old_skin.items():
+            if was_set:
+                setattr(p, name, value)
+            else:
+                p.property_unset(name)
         for binding, enabled in zip(p.materials, old_sdf):
             binding.sdf_enabled = enabled
         for binding, generated in zip(p.materials, old_generated):
@@ -232,9 +245,9 @@ def refresh(root, modifiers=None):
     for binding in p.materials:
         if binding.generated:
             basic.refresh(binding.generated, binding, p)
-    legacy_body = any(b.generated and b.role in {'BODY', 'HAIR'} and b.generated.node_tree.get('hzz_body_version') != 3 for b in p.materials)
+    legacy_body = any(b.generated and b.role in {'BODY', 'HAIR'} and b.generated.node_tree.get('hzz_body_version') != 4 for b in p.materials)
     if legacy_body:
-        p.report = '当前为旧版主体材质；请重置共用表面参数并重新应用以启用 0.5 配色与反射'
+        p.report = '当前为旧版材质；点击更新材质以启用统一肤色与光色响应'
     if p.head:
         controllers.update_head(p.head, p.head_yaw)
     if modifiers is None:

@@ -79,6 +79,12 @@ def add(g, a, b):
     return g.mix(a, b, mode='ADD')
 
 
+def visibility(g, rgb, profile):
+    received = g.smooth(g.gray(rgb), .07, .5)
+    strength = g.value('HZZ Scene Shadow Strength', profile.scene_shadow_strength)
+    return g.math('SUBTRACT', 1, g.math('MULTIPLY', g.math('SUBTRACT', 1, received), strength))
+
+
 def illumination(g, normal, bias, light, profile, is_hair):
     ndotl = g.vector('DOT_PRODUCT', normal, light)
     offset = g.math('MULTIPLY', g.math('SUBTRACT', bias, .5),
@@ -100,18 +106,42 @@ def illumination(g, normal, bias, light, profile, is_hair):
     sample = g.node('ShaderNodeShaderToRGB', 'HZZ Received Scene Light')
     g.link(receiver.outputs[0], sample.inputs[0])
     rgb = sample.outputs['Color']
-    visibility = g.smooth(g.gray(rgb), .07, .5)
-    strength = g.value('HZZ Scene Shadow Strength', profile.scene_shadow_strength)
-    gate = g.math('SUBTRACT', 1, g.math('MULTIPLY', g.math('SUBTRACT', 1, visibility), strength))
+    gate = visibility(g, rgb, profile)
     return ndotl, g.math('MULTIPLY', low, gate), g.math('MULTIPLY', high, gate), rgb
 
 
+def skin_palette(g, base, lit, profile):
+    """One skin colour basis for SDF faces and normal-driven body skin."""
+    tint = g.color('HZZ Skin Tint', profile.skin_tint)
+    adjust = g.node('ShaderNodeHueSaturation', 'HZZ Skin Color')
+    g.link(multiply(g, base, tint), adjust.inputs['Color'])
+    adjust.inputs['Saturation'].default_value = profile.skin_saturation
+    adjust.inputs['Value'].default_value = profile.skin_brightness
+    key = g.color('HZZ Skin Key Color', profile.skin_key_color)
+    shadow = g.color('HZZ Skin Shadow Color', profile.skin_shadow_color)
+    return multiply(g, adjust.outputs['Color'], g.mix(shadow, key, lit))
+
+
+def refresh_skin(nodes, profile):
+    # Saved materials keep their graph until the user explicitly updates it.
+    if 'HZZ Skin Color' in nodes:
+        nodes['HZZ Skin Tint'].outputs[0].default_value = (*profile.skin_tint, 1)
+        nodes['HZZ Skin Color'].inputs['Saturation'].default_value = profile.skin_saturation
+        nodes['HZZ Skin Color'].inputs['Value'].default_value = profile.skin_brightness
+    for name, value in (('HZZ Skin Key Color', profile.skin_key_color),
+                        ('HZZ Skin Shadow Color', profile.skin_shadow_color)):
+        nodes[name].outputs[0].default_value = (*value, 1)
+    nodes['HZZ Light Color Strength'].outputs[0].default_value = profile.light_color_strength
+    nodes['HZZ Scene Shadow Strength'].outputs[0].default_value = profile.scene_shadow_strength
+
+
 def palette(g, base, low, high, profile, is_hair, is_skin):
-    key = g.color('HZZ Surface Key Color', profile.skin_key_color if is_skin else profile.surface_key_color)
-    shadow = g.color('HZZ Body Shadow Color', profile.skin_shadow_color if is_skin else profile.body_shadow_color)
     if is_skin:
-        middle = g.mix(shadow, key, .6)
-        return multiply(g, base, g.mix(g.mix(shadow, middle, low), key, high))
+        middle = g.math('MULTIPLY', low, .6)
+        lit = g.math('ADD', middle, g.math('MULTIPLY', g.math('SUBTRACT', 1, middle), high))
+        return skin_palette(g, base, lit, profile)
+    key = g.color('HZZ Surface Key Color', profile.surface_key_color)
+    shadow = g.color('HZZ Body Shadow Color', profile.body_shadow_color)
     middle = g.color('HZZ Surface Mid Color', profile.surface_mid_color)
     luminance = g.gray(base)
     dark = g.math('SUBTRACT', 1, g.smooth(luminance, .025, .22))
@@ -154,7 +184,7 @@ def surface_response(g, color, base, normal, light, view, metal, mask, smooth, h
     lobe = g.math('MULTIPLY', lobe, g.math('MULTIPLY', mask, specular))
     lobe = g.math('MULTIPLY', lobe, .06 if is_skin else .6)
     lobe = g.math('MULTIPLY', lobe, g.math('ADD', .2, g.math('MULTIPLY', high, .8)))
-    color = add(g, color, multiply(g, (.85, .78, .89, 1), lobe))
+    color = add(g, color, multiply(g, (1, 1, 1, 1) if is_skin else (.85, .78, .89, 1), lobe))
     if is_skin:
         return color
     # Two broad stylized cards follow the same key and evaluated camera vector.
@@ -182,7 +212,7 @@ def scene_chroma(g, color, rgb, profile):
 
 
 def build(g, base, data, profile, cache, plan):
-    g.tree['hzz_body_version'] = 3
+    g.tree['hzz_body_version'] = 4
     decoded = decode(g, data, profile, cache, plan)
     normal, bias, metal, mask, smooth = (decoded[k] for k in ('normal', 'bias', 'metal', 'mask', 'smooth'))
     is_hair, is_skin = data.role == 'HAIR', skin(data)
@@ -206,7 +236,7 @@ def build(g, base, data, profile, cache, plan):
     edge = g.math('POWER', g.math('SUBTRACT', 1, nv), 3)
     rim = g.math('MULTIPLY', edge, g.math('MULTIPLY', g.math('MAXIMUM', ndotl, 0),
                                         g.value('HZZ Rim Strength', profile.rim_strength)))
-    color = add(g, color, multiply(g, (.67, .64, .93, 1), rim))
+    color = add(g, color, multiply(g, (1, 1, 1, 1) if is_skin else (.67, .64, .93, 1), rim))
     color = scene_chroma(g, color, rgb, profile)
     return high, shoulder(g, color) if is_hair else color
 
@@ -229,6 +259,8 @@ def refresh(material, profile):
     for name, value in values.items():
         if name in nodes:
             nodes[name].outputs[0].default_value = value
+    if 'HZZ Skin Key Color' in nodes:
+        refresh_skin(nodes, profile)
     for name, value in {
         'HZZ Surface Key Color': profile.skin_key_color if semantic == 'SKIN' else profile.surface_key_color,
         'HZZ Body Shadow Color': profile.skin_shadow_color if semantic == 'SKIN' else profile.body_shadow_color,

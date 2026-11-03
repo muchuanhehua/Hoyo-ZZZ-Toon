@@ -69,8 +69,8 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
         row = layout.row(align=True)
         row.operator('hzz.reset_materials', icon='LOOP_BACK')
         row.operator('hzz.restore')
-        if p.build_version != 6:
-            message(layout, '旧版材质：点击更新材质迁移到简化流程。')
+        if p.build_version != 8:
+            message(layout, '旧版材质：点击更新材质启用统一肤色调节。')
         elif p.resource_report:
             message(layout, p.resource_report)
         if p.preview_error:
@@ -89,6 +89,18 @@ class HZZ_PT_local_colors(HZZPanel, bpy.types.Panel):
         if not p or not p.materials:
             layout.label(text='应用材质后调整局部颜色', icon='MATERIAL')
             return
+        box = layout.box()
+        row = box.row(align=True)
+        row.label(text='统一肤色')
+        row.operator('hzz.reset_skin_colors', text='重置', icon='LOOP_BACK')
+        if not p.managed or p.build_version < 8:
+            message(box, '点击更新材质启用肤色调节。')
+        elif not any(b.generated and 'HZZ Skin Color' in b.generated.node_tree.nodes for b in p.materials):
+            message(box, '未识别独立皮肤，请在下方按材质调色。')
+        else:
+            for name in ('skin_tint', 'skin_brightness', 'skin_saturation'):
+                box.prop(p, name, slider=name != 'skin_tint')
+        layout.label(text='单独材质')
         layout.template_list('HZZ_UL_materials', '', p, 'materials', p, 'active_material', rows=3, maxrows=3)
         binding = p.materials[min(max(p.active_material, 0), len(p.materials) - 1)]
         if binding.role == 'UNKNOWN':

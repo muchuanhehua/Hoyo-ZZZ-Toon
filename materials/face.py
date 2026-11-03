@@ -121,15 +121,10 @@ def lighting(graph, uv, profile, cache):
         graph.link(attr.outputs['Vector'], node.inputs[socket])
     image = cache.load(profile.face_lightmap, colorspace='Non-Color', alpha_mode='CHANNEL_PACKED')
     graph.link(sampler(graph, image), node.inputs['Sampler'])
-    # Preserve actual visibility and ambient light without adding facial Lambert
-    # shapes again. A low fixed ramp would saturate under City-Terrace ambient.
+    # Return native reception separately so face and body share visibility and chroma.
     diffuse = graph.node('ShaderNodeBsdfDiffuse', 'Face Sun-facing Receiver')
     diffuse.inputs['Color'].default_value = (1, 1, 1, 1)
     graph.link(directions['HZZ_SUN'], diffuse.inputs['Normal'])
     sample = graph.node('ShaderNodeShaderToRGB', 'Face Received Light')
     graph.link(diffuse.outputs[0], sample.inputs[0])
-    gate = graph.node('ShaderNodeMath', 'Face Received Light Gate')
-    gate.operation, gate.use_clamp = 'MULTIPLY', True
-    graph.link(graph.gray(sample.outputs['Color']), gate.inputs[0])
-    gate.inputs[1].default_value = 1
-    return graph.math('MULTIPLY', node.outputs['Lit'], gate.outputs[0])
+    return node.outputs['Lit'], sample.outputs['Color']
