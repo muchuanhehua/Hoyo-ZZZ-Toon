@@ -69,8 +69,10 @@ Hoyo-GI-Toon 2.5.0 的六面板、场景生命周期、持久打光、原生相�
 
 0.7.1 根据实际灰白块复现修正可见性计算。[Blender EEVEE 通道限制](https://docs.blender.org/manual/en/4.5/render/layers/passes.html#eevee-limitations)说明 `BLENDED` 材质不参与 Combined／Transparent 之外的通道。辅助场景为目标与透明遮挡物建立独立的 `DITHERED` 材质槽副本，保留实际 Alpha 和变形；主画面材质保持原渲染方法。该适配为本项目实现，非上游已验证能力。
 
-## 0.8 原始头发高光扩缩
+## 0.8.0 原始头发高光扩缩（已撤回）
 
 参考同一 RandomPlayToon 提交 `materials/feature_extension.py` 的 `hair_width`：根据原始遮罩的 4／12 基准像素扩张／收缩端点连续插值，0 保留原始遮罩。本项目仅在 FBX 引用和 UV 已核对的头发 M.B 通道接入，并继续使用原区域置信度与实际主光响应。
 
 `materials/hair_highlights.py` 自行增加边缘柔化端点、按内容摘要复用、单张派生图长边不超过 2048、独立打包数据图及原生属性驱动。原始遮罩在默认值直接保留，派生图不覆盖用户文件；不改变底色图绘制的亮纹、脸影或身体响应，不引入上游角色预设。
+
+上述为历史版本记录。用户随后要求去掉此更新，0.8.1 已移除该模块、材质接入和面板，恢复 0.7.1 的 `materials/surface.py`；保留旧包与验证记录用于追溯。

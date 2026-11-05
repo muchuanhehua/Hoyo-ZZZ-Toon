@@ -143,6 +143,7 @@ def apply(root, context):
     before = ownership.snapshot()
     old_head, was_managed = p.head, p.managed
     old_eye_report = p.eye_report
+    old_hair_strength = ('hair_highlights' in p, p.get('hair_highlights'))
     old_face = p.face_mode, p.face_lightmap, p.resource_report
     old_sdf = [b.sdf_enabled for b in p.materials]
     old_skin = {name: (p.is_property_set(name), tuple(getattr(p, name)))
@@ -152,6 +153,10 @@ def apply(root, context):
     new_modifiers, old_modifiers = [], [(e.object, m) for e in p.meshes for m in owned_modifiers(e.object, p.uid)]
     p.building = True
     try:
+        # 0.8.0 exposed values above the original control's upper bound.
+        # Retain artist values in the original range when withdrawing it.
+        if p.build_version == 12:
+            p.hair_highlights = min(1, max(0, p.hair_highlights))
         if p.build_version in {7, 8}:
             # Only 0.6.1/0.6.2 used these neutral defaults. New and older
             # profiles may have deliberately authored the same values.
@@ -215,7 +220,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 12
+        p.build_version = 13
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived
@@ -225,6 +230,10 @@ def apply(root, context):
                     slot.material = material
         p.head, p.managed = old_head, was_managed
         p.eye_report = old_eye_report
+        if old_hair_strength[0]:
+            p['hair_highlights'] = old_hair_strength[1]
+        else:
+            p.property_unset('hair_highlights')
         p.face_mode, p.face_lightmap, p.resource_report = old_face
         for name, (was_set, value) in old_skin.items():
             if was_set:
