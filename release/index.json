@@ -5,7 +5,7 @@
     {
       "schema_version": "1.0.0",
       "id": "hoyo_zzz_toon",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "name": "Hoyo-ZZZ-Toon",
       "tagline": "绝区零 PMX 自动材质、局部调色与场景预览",
       "maintainer": "muchuanhehua",
@@ -22,9 +22,9 @@
       "permissions": {
         "files": "读取用户选择的 PMX、FBX 目录与本地贴图"
       },
-      "archive_url": "https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/download/v0.8.0/hoyo_zzz_toon-0.8.0.zip",
-      "archive_size": 4068561,
-      "archive_hash": "sha256:edf23ff5b012a970933021bc67341045741fce88e3dacbb23b8c6bbed0e4c6d4"
+      "archive_url": "https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/download/v0.8.1/hoyo_zzz_toon-0.8.1.zip",
+      "archive_size": 4065224,
+      "archive_hash": "sha256:26db3e29fc1b91082b97c0d9858f92b66a5e6e583ab61d3840bf8151c5f424dd"
     }
   ]
 }
