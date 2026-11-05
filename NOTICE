@@ -1,4 +1,4 @@
-Hoyo-ZZZ-Toon 0.7.0
+Hoyo-ZZZ-Toon 0.8.0
 
 Copyright 2026 muchuanhehua
 Distributed under GPL-3.0-only. See LICENSE.
@@ -51,3 +51,10 @@ The automatic head-frame region, standard blink controls, per-target visibility
 scenes, scene synchronization and reversible compositor lifecycle are implemented
 in outlines.py, eye_reveal.py and eye_compositor.py. No upstream role presets,
 fixed face indices or calibrated character assets are included.
+
+Version 0.8 adapts the authored-mask morphology endpoint interpolation from
+materials/feature_extension.py at the same RandomPlayToon commit. The bounded
+preprocessing, soft endpoints, content-based reuse, owned packed data images
+and native animated controls are implemented in materials/hair_highlights.py.
+Only verified hair M.B inputs are reshaped; no character presets or texture
+assets are bundled with this feature.

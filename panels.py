@@ -66,6 +66,18 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
             return
         for name in ('shadow_balance', 'shadow_transition', 'reflection_strength', 'outline'):
             layout.prop(p, name, slider=True, **({'text': '衣料光泽'} if name == 'reflection_strength' else {}))
+        hair_header, hair = layout.panel('hzz_hair_highlights', default_closed=True)
+        hair_header.label(text='头发高光')
+        if hair:
+            materials = [b.generated for b in p.materials if b.role == 'HAIR' and b.generated]
+            matched = sum(bool(m.node_tree.get('hzz_hair_band_version')) for m in materials)
+            hair.prop(p, 'hair_highlights', text='高光强度', slider=True)
+            shape = hair.column()
+            shape.enabled = matched > 0
+            shape.prop(p, 'hair_band_width', text='高光扩缩（像素）', slider=True)
+            shape.prop(p, 'hair_band_softness', slider=True)
+            message(hair, f'原始高光遮罩 {matched}/{len(materials)} 个头发材质' if matched
+                    else '选择配套 FBX 并更新材质，自动匹配原始高光遮罩。')
         layout.prop(p, 'eye_reveal', slider=True)
         if p.eye_report and p.eye_reveal > 0:
             layout.label(text='F12 查看完整透眼', icon='RENDER_STILL')
@@ -81,8 +93,8 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
         row = layout.row(align=True)
         row.operator('hzz.reset_materials', icon='LOOP_BACK')
         row.operator('hzz.restore')
-        if p.build_version != 11:
-            message(layout, '旧版材质：点击更新材质启用自动描边和透眼。')
+        if p.build_version != 12:
+            message(layout, '旧版材质：点击更新材质启用头发高光扩缩。')
         elif p.resource_report:
             message(layout, p.resource_report)
         if p.preview_error:

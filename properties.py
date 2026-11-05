@@ -25,6 +25,7 @@ SURFACE_CONTROLS = ('body_shadow_color', 'skin_shadow_color', 'light_color_stren
     'specular', 'surface_threshold', 'surface_softness', 'bias_strength', 'normal_strength',
     'surface_data_strength', 'scene_shadow_strength', 'reflection_strength', 'hair_highlights', 'rim_strength',
     'surface_key_color', 'surface_mid_color', 'skin_key_color', 'face_key_color', 'shadow_color',
+    'hair_band_width', 'hair_band_softness',
     'ambient_tint_strength', 'hair_shadow_shift')
 
 OUTLINE_CONTROLS = ('outline_face_scale', 'outline_skin_scale', 'outline_hair_scale',
@@ -197,7 +198,12 @@ class HZZCharacter(PropertyGroup):
     scene_shadow_strength: FloatProperty(name='场景遮挡影响', default=.65, min=0, max=1, update=update_profile)
     reflection_strength: FloatProperty(name='宽反射与衣料光泽', default=.35, min=0, max=1,
         description='依据金属、高光遮罩、光滑度与实际主光方向构造风格化宽反射', update=update_profile)
-    hair_highlights: FloatProperty(name='发束高光', default=.45, min=0, max=1, update=update_profile)
+    hair_highlights: FloatProperty(name='发束高光', default=.45, min=0, max=3, soft_max=1, update=update_profile,
+        description='控制发束高光强度；原始底图中已经画入的亮纹保持，手动输入最高3')
+    hair_band_width: FloatProperty(name='高光扩缩', default=0, min=-12, max=12, precision=2,
+        description='仅调整已匹配的原始头发高光遮罩：正值扩宽，负值收窄；以贴图长边1024像素为基准', update=update_profile)
+    hair_band_softness: FloatProperty(name='边缘柔化', default=0, min=0, max=1,
+        description='仅柔化原始头发高光遮罩边缘；0保留当前边缘，1为最大柔化', update=update_profile)
     rim_strength: FloatProperty(name='轮廓光', default=.015, min=0, max=.3, update=update_profile)
     outline_width: FloatProperty(name='描边粗细', default=.0012, min=0, max=.05,
         subtype='DISTANCE', precision=4, update=update_profile)

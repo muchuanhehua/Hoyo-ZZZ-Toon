@@ -215,7 +215,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 11
+        p.build_version = 12
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived

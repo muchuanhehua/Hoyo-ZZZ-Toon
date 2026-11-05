@@ -43,6 +43,10 @@ def decode(g, data, profile, cache, plan):
     attr.attribute_name = COVERAGE
     weight = g.math('MULTIPLY', attr.outputs['Fac'], g.value('HZZ Data Strength', profile.surface_data_strength))
     m, a, n = (decoded[k] for k in 'MAN')
+    authored_mask = m[2]
+    if data.role == 'HAIR':
+        from . import hair_highlights
+        authored_mask = hair_highlights.build(g, authored_mask, profile, cache, plan)
     strength = g.value('HZZ Normal Strength', profile.normal_strength)
     x, y = [g.math('MULTIPLY', g.math('SUBTRACT', g.math('MULTIPLY', n[i], 2), 1), strength) for i in (0, 1)]
     if plan['flip']:
@@ -55,7 +59,7 @@ def decode(g, data, profile, cache, plan):
     g.link(encoded, normal.inputs['Color'])
     g.link(weight, normal.inputs['Strength'])
     result.update(normal=normal.outputs['Normal'], bias=g.mix(.5, n[2], weight),
-        metal=g.math('MULTIPLY', m[1], weight), mask=g.math('MULTIPLY', m[2], weight),
+        metal=g.math('MULTIPLY', m[1], weight), mask=g.math('MULTIPLY', authored_mask, weight),
         smooth=g.mix(.5, a[1], weight),
         slot=g.math('MAXIMUM', 0, g.math('SUBTRACT', 4, g.math('FLOOR', g.math('MULTIPLY', m[0], 5)))))
     return result
@@ -166,10 +170,11 @@ def palette(g, base, low, high, profile, is_hair, is_skin):
 
 
 def hair_response(g, color, base, mask, ndotl, profile):
+    from .hair_highlights import control
     facing = g.math('ADD', .45, g.math('MULTIPLY', .55, g.math('MAXIMUM', ndotl, 0)))
     band = g.math('MULTIPLY', g.math('POWER', g.math('MAXIMUM', mask, 0), .7), facing)
     strength = g.math('MULTIPLY', g.value('HZZ Specular', profile.specular),
-                      g.value('HZZ Hair Highlights', profile.hair_highlights))
+                      control(g, profile, 'HZZ Hair Highlights', 'hair_highlights'))
     band = g.math('MULTIPLY', band, strength)
     tint = g.mix(base, (.62, .68, .94, 1), .22)
     return add(g, color, multiply(g, tint, band))
