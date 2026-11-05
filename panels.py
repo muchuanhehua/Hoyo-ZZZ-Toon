@@ -66,11 +66,23 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
             return
         for name in ('shadow_balance', 'shadow_transition', 'reflection_strength', 'outline'):
             layout.prop(p, name, slider=True, **({'text': '衣料光泽'} if name == 'reflection_strength' else {}))
+        layout.prop(p, 'eye_reveal', slider=True)
+        if p.eye_report and p.eye_reveal > 0:
+            layout.label(text='F12 查看完整透眼', icon='RENDER_STILL')
+        header, advanced = layout.panel('hzz_render_details', default_closed=True)
+        header.label(text='描边与透眼')
+        if advanced:
+            advanced.prop(p, 'outline_camera_bound')
+            advanced.prop(p, 'outline_pixel_cap')
+            for name in ('eye_brow_strength', 'eye_front_angle', 'eye_side_angle'):
+                advanced.prop(p, name, slider=True)
+            if p.eye_report:
+                message(advanced, p.eye_report)
         row = layout.row(align=True)
         row.operator('hzz.reset_materials', icon='LOOP_BACK')
         row.operator('hzz.restore')
-        if p.build_version != 9:
-            message(layout, '旧版材质：点击更新材质采用偏粉默认肤色。')
+        if p.build_version != 10:
+            message(layout, '旧版材质：点击更新材质启用自动描边和透眼。')
         elif p.resource_report:
             message(layout, p.resource_report)
         if p.preview_error:

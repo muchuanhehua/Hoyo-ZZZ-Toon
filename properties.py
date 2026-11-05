@@ -28,7 +28,9 @@ SURFACE_CONTROLS = ('body_shadow_color', 'skin_shadow_color', 'light_color_stren
     'ambient_tint_strength', 'hair_shadow_shift')
 
 OUTLINE_CONTROLS = ('outline_face_scale', 'outline_skin_scale', 'outline_hair_scale',
-                    'outline_color_mix', 'outline_brightness')
+                    'outline_color_mix', 'outline_brightness', 'outline_camera_bound', 'outline_pixel_cap')
+
+EYE_CONTROLS = ('eye_reveal', 'eye_brow_strength', 'eye_front_angle', 'eye_side_angle')
 
 SKIN_COLOR_CONTROLS = ('skin_tint', 'skin_brightness', 'skin_saturation')
 
@@ -199,6 +201,15 @@ class HZZCharacter(PropertyGroup):
     rim_strength: FloatProperty(name='轮廓光', default=.015, min=0, max=.3, update=update_profile)
     outline_width: FloatProperty(name='描边粗细', default=.0012, min=0, max=.05,
         subtype='DISTANCE', precision=4, update=update_profile)
+    outline_camera_bound: BoolProperty(name='相机约束描边', default=True, update=update_profile,
+        description='自动按当前相机限制描边投影、像素宽度及局部外扩')
+    outline_pixel_cap: FloatProperty(name='最大像素宽度', default=3, min=.25, max=12, update=update_profile)
+    eye_reveal: FloatProperty(name='刘海透眼', default=.65, min=0, max=1, update=update_profile,
+        description='自动识别前刘海，仅在最终合成中显现实际可见眼部；0关闭')
+    eye_brow_strength: FloatProperty(name='眉睫透出', default=.35, min=0, max=1, update=update_profile)
+    eye_front_angle: FloatProperty(name='完整透出角度', default=30, min=0, max=70, update=update_profile)
+    eye_side_angle: FloatProperty(name='侧面淡出角度', default=75, min=35, max=89, update=update_profile)
+    eye_report: StringProperty()
     outline_face_scale: FloatProperty(name='脸部线宽倍率', default=.4, min=0, max=2, update=update_profile)
     outline_skin_scale: FloatProperty(name='独立皮肤线宽倍率', default=.55, min=0, max=2,
         description='作用于识别为独立皮肤的材质；混合图集仍按主体用途处理', update=update_profile)

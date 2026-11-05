@@ -3,7 +3,7 @@ import uuid
 import json
 import bpy
 from .adapters import pmx
-from . import controllers, outlines, ownership
+from . import controllers, outlines, ownership, eye_reveal, eye_compositor
 from .materials import basic, face, surface_inputs
 
 
@@ -142,6 +142,7 @@ def apply(root, context):
     descriptions = validate(root, check_face=False)
     before = ownership.snapshot()
     old_head, was_managed = p.head, p.managed
+    old_eye_report = p.eye_report
     old_face = p.face_mode, p.face_lightmap, p.resource_report
     old_sdf = [b.sdf_enabled for b in p.materials]
     old_skin = {name: (p.is_property_set(name), tuple(getattr(p, name)))
@@ -173,6 +174,8 @@ def apply(root, context):
                     'uv': plan['uv'], 'flip_v': plan['flip'], 'metrics': plan['metrics']}, ensure_ascii=False)
         head = controllers.create_head(root, context) if any(d.role == 'FACE' for d in descriptions.values()) else None
         pending = [prepare_mesh(e, p, replacements, head, descriptions, cache, surface_plans) for e in p.meshes]
+        eye_audit = eye_reveal.author(p, pending, descriptions, head) if head else {
+            'status': 'unavailable', 'bang_faces': 0, 'reason': '缺少头部参照，未启用透眼'}
         for item in pending:
             obj = item['entry'].object
             for kind in ('face', 'outline'):
@@ -201,6 +204,10 @@ def apply(root, context):
         for _obj, modifier in new_modifiers:
             modifier.show_viewport = modifier.show_render = True
         refresh(root, modifiers=[m for _obj, m in new_modifiers])
+        auxiliary = eye_compositor.prepare(root, context, [m for _obj, m in new_modifiers]) if eye_audit['status'] == 'ready' else None
+        eye_compositor.replace(root, context.scene, auxiliary)
+        p.eye_report = eye_audit['reason']
+        p['hzz_eye_audit'] = json.dumps(eye_audit, ensure_ascii=False)
         for obj, modifier in old_modifiers:
             obj.modifiers.remove(modifier)
         label = '共享 SDF' if p.face_mode == 'SDF' else '基础脸影'
@@ -208,7 +215,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 9
+        p.build_version = 10
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived
@@ -217,6 +224,7 @@ def apply(root, context):
                 if link == 'OBJECT':
                     slot.material = material
         p.head, p.managed = old_head, was_managed
+        p.eye_report = old_eye_report
         p.face_mode, p.face_lightmap, p.resource_report = old_face
         for name, (was_set, value) in old_skin.items():
             if was_set:
@@ -263,9 +271,10 @@ def refresh(root, modifiers=None):
                 legacy_outline = True
             modifier.show_viewport = modifier.show_render = p.outline_width > 0
     if legacy_outline:
-        p.report = p.report + '；重新应用同时更新描边' if legacy_body else '当前为旧版描边；请重新应用材质以启用 0.5.1 共用线宽倍率和线色控制'
+        p.report = p.report + '；重新应用同时更新描边' if legacy_body else '当前为旧版描边；请更新材质以启用相机约束描边'
     for entry in p.meshes:
         entry.object.update_tag()
+    eye_compositor.refresh(root)
 
 
 def restore(root):
@@ -277,6 +286,7 @@ def restore(root):
             raise ValueError('角色网格引用已改变，请检查后再恢复')
     p.building = True
     try:
+        eye_compositor.remove(root)
         for entry in p.meshes:
             obj = entry.object
             for modifier in owned_modifiers(obj, p.uid):

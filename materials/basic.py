@@ -56,6 +56,8 @@ def build(data, binding, profile, cache, surface_plan=None):
     if 'sphere' in data.textures:
         color = responses.sphere(graph, color, data, cache.load(data.textures['sphere']), texture)
     graph.surface(color, alpha)
+    from ..eye_reveal import shader
+    shader(graph, color, alpha, data, profile)
     transparent = data.alpha < 1 or data.role == 'OVERLAY' or (base and cache.alpha_min(base.image) < 1)
     # An atlas can contain transparent pixels outside the iris UVs. Opaque
     # eye surfaces still need a depth-writing coverage pass: Blended overlap

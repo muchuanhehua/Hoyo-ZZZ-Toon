@@ -120,13 +120,13 @@ class HZZ_OT_reset(CharacterOperation, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def run(self, context):
-        from .properties import SURFACE_CONTROLS, OUTLINE_CONTROLS
+        from .properties import SURFACE_CONTROLS, OUTLINE_CONTROLS, EYE_CONTROLS
         from .outlines import DEFAULT_WIDTH_RATIO
         root = scene_models.ensure(scene_models.selected(context), context)
         p = root.hzz_character
         p.building = True
         try:
-            for name in (*SURFACE_CONTROLS, *OUTLINE_CONTROLS, 'shadow_position', 'shadow_softness'):
+            for name in (*SURFACE_CONTROLS, *OUTLINE_CONTROLS, *EYE_CONTROLS, 'shadow_position', 'shadow_softness'):
                 p.property_unset(name)
             p.outline_width = p.height * DEFAULT_WIDTH_RATIO
         finally:
