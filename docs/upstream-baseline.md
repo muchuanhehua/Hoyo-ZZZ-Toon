@@ -66,3 +66,5 @@ Hoyo-GI-Toon 2.5.0 的六面板、场景生命周期、持久打光、原生相�
 继续固定 RandomPlayToon `87ebc01de7c6a1ab4796b7da7196b88830d74667`：参考 `feature_extension.py` 的相机平面描边、局部边长与像素上限，以及 `effects/layers.py` 的刘海域、可见眼部、深度与预乘颜色合成。保留本项目 PMX 顶点边线权重和身高倍率。
 
 本项目自行实现基于头部坐标与语义几何的刘海／眼眶范围、标准闭眼形态键驱动、逐目标可见性场景、原场景对象同步及合成器恢复。辅助计算只替换目标角色的派生渲染网格，其他角色与场景继续遮挡；无需挪动源集合。没有引入上游按角色保存的指纹预设、固定面号、脸部场或完整角色工程。基础脸影、SDF 与身体着色保持 0.6.3 实现。
+
+0.7.1 根据实际灰白块复现修正可见性计算。[Blender EEVEE 通道限制](https://docs.blender.org/manual/en/4.5/render/layers/passes.html#eevee-limitations)说明 `BLENDED` 材质不参与 Combined／Transparent 之外的通道。辅助场景为目标与透明遮挡物建立独立的 `DITHERED` 材质槽副本，保留实际 Alpha 和变形；主画面材质保持原渲染方法。该适配为本项目实现，非上游已验证能力。

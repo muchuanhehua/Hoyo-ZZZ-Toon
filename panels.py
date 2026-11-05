@@ -81,7 +81,7 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
         row = layout.row(align=True)
         row.operator('hzz.reset_materials', icon='LOOP_BACK')
         row.operator('hzz.restore')
-        if p.build_version != 10:
+        if p.build_version != 11:
             message(layout, '旧版材质：点击更新材质启用自动描边和透眼。')
         elif p.resource_report:
             message(layout, p.resource_report)

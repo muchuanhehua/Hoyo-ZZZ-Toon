@@ -215,7 +215,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 10
+        p.build_version = 11
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived
@@ -274,7 +274,10 @@ def refresh(root, modifiers=None):
         p.report = p.report + '；重新应用同时更新描边' if legacy_body else '当前为旧版描边；请更新材质以启用相机约束描边'
     for entry in p.meshes:
         entry.object.update_tag()
-    eye_compositor.refresh(root)
+    # A staged rebuild has swapped source meshes only provisionally. Updating
+    # the old visibility proxies here would invalidate failure rollback.
+    if not p.building:
+        eye_compositor.refresh(root)
 
 
 def restore(root):

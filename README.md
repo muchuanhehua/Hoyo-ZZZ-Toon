@@ -1,12 +1,12 @@
 # Hoyo-ZZZ-Toon
 
-面向绝区零 PMX / MMD 模型的 Blender 5.2 卡通渲染插件。当前版本为 **0.7.0**。应用材质时自动生成相机约束描边和选择性刘海透眼，保留现有偏粉肤色、实时调色与主光互斥。
+面向绝区零 PMX / MMD 模型的 Blender 5.2 卡通渲染插件。当前版本为 **0.7.1**。应用材质时自动生成相机约束描边和选择性刘海透眼，修复刘海下的灰白块与错误硬边，保留现有偏粉肤色、实时调色与主光互斥。
 
 脸与身体皮肤使用同一套颜色、遮挡和场景光色响应，默认光与内置场景主光互斥。0.6.3 将这套共用配色调回偏粉；旧工程选择主体后点击“更新材质”生效，已有统一肤色调节、局部调色与原贴图保留。
 
 **局部调色 → 统一肤色** 提供色调、亮度、饱和度和重置，用于对照游戏截图。脸与已识别的独立身体皮肤同步实时变化；白色色调、亮度 1、饱和度 1 表示不额外调色，保留当前版本的默认偏粉效果。旧工程先点一次“更新材质”。
 
-[下载 0.7.0](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/tag/v0.7.0)。已有 Hoyo-ZZZ-Toon 扩展源可直接检查更新；更新源地址保持不变：`https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.json`。
+[下载 0.7.1](https://github.com/muchuanhehua/Hoyo-ZZZ-Toon/releases/tag/v0.7.1)。已有 Hoyo-ZZZ-Toon 扩展源可直接检查更新；更新源地址保持不变：`https://raw.githubusercontent.com/muchuanhehua/Hoyo-ZZZ-Toon/main/release/index.json`。
 
 ## 开始使用
 

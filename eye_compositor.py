@@ -12,6 +12,125 @@ from . import ownership, eye_reveal
 from .materials.graph import Graph
 
 
+def depth_material(source, uid, cache):
+    """BLENDED surfaces are absent from EEVEE AOV/depth passes.
+
+    Use an object-slot copy only in visibility scenes, retaining the shader's
+    real alpha and animation. Beauty and the shared derived mesh stay intact.
+    """
+    material = cache.get(source)
+    if material is None:
+        material = ownership.tag(source.copy(), uid, 'eye')
+        material.name = 'HZZ Eye Depth ' + source.name
+        material['hzz_eye_material_source'] = source
+        cache[source] = material
+    material.surface_render_method = 'DITHERED'
+    material.use_backface_culling = source.use_backface_culling
+    material.use_transparency_overlap = source.use_transparency_overlap
+    if not source.use_nodes:
+        material.diffuse_color = source.diffuse_color
+        return material
+    original, copied = source.node_tree, material.node_tree
+    if {(n.name, n.bl_idname) for n in original.nodes} != {(n.name, n.bl_idname) for n in copied.nodes}:
+        # A user changed the shader structure since the previous render.
+        del cache[source]
+        return depth_material(source, uid, cache)
+    for node in original.nodes:
+        target = copied.nodes[node.name]
+        for prop in node.bl_rna.properties:
+            if prop.is_readonly or prop.identifier in {'name', 'parent', 'select', 'location', 'width', 'height', 'label'}:
+                continue
+            if prop.type in {'BOOLEAN', 'INT', 'FLOAT', 'ENUM', 'STRING'} or prop.identifier in {'image', 'object', 'node_tree'}:
+                setattr(target, prop.identifier, getattr(node, prop.identifier))
+        for source_socket, target_socket in zip(node.inputs, target.inputs):
+            if hasattr(source_socket, 'default_value'):
+                target_socket.default_value = source_socket.default_value
+        if node.type in {'VALUE', 'RGB'}:
+            target.outputs[0].default_value = node.outputs[0].default_value
+    expected = {(l.from_node.name, l.from_socket.identifier, l.to_node.name, l.to_socket.identifier) for l in original.links}
+    actual = {(l.from_node.name, l.from_socket.identifier, l.to_node.name, l.to_socket.identifier) for l in copied.links}
+    if expected != actual:
+        for link in list(copied.links):
+            copied.links.remove(link)
+        for link in original.links:
+            output = next(s for s in copied.nodes[link.from_node.name].outputs if s.identifier == link.from_socket.identifier)
+            input_socket = next(s for s in copied.nodes[link.to_node.name].inputs if s.identifier == link.to_socket.identifier)
+            copied.links.new(output, input_socket)
+    return material
+
+
+def proxy_transform(proxy, original):
+    proxy['hzz_eye_original'] = original
+    constraint = proxy.constraints.get('HZZ Eye Follow Source')
+    if constraint is None:
+        constraint = proxy.constraints.new('COPY_TRANSFORMS')
+        constraint.name = 'HZZ Eye Follow Source'
+    constraint.target = original
+
+
+def sync_visibility(aux, visible, target):
+    """Make transparent occluders participate in the same visibility pass.
+
+    Target meshes already have a bangs-filter proxy. Other scene objects stay
+    linked directly unless their BLENDED materials also require a depth copy.
+    """
+    uid = aux['hzz_owner']
+    proxies = {obj for obj in aux.objects if obj.get('hzz_eye_proxy')}
+    # Saved 0.7.0 scenes predate explicit source references on target proxies.
+    entries = aux['hzz_eye_root'].hzz_character.meshes
+    for index, entry in enumerate(entries):
+        stable = 'HZZ Eye Proxy ' + uid[:12] + ' ' + str(index)
+        for proxy in proxies:
+            if proxy.get('hzz_eye_name') == stable and not proxy.get('hzz_eye_original'):
+                proxy_transform(proxy, entry.object)
+    by_source = {obj.get('hzz_eye_original'): obj for obj in proxies}
+    for original in visible - target:
+        if original in by_source or original.hide_render or getattr(original, 'mmd_type', '') in {'RIGID_BODY', 'JOINT'} or not any(slot.material and slot.material.surface_render_method == 'BLENDED'
+                                           for slot in original.material_slots):
+            continue
+        proxy = ownership.tag(original.copy(), uid, 'eye')
+        proxy.name = 'HZZ Eye Occluder ' + original.name
+        proxy['hzz_eye_name'] = proxy.name
+        proxy['hzz_eye_proxy'] = True
+        aux.collection.objects.link(proxy)
+        if proxy.rigid_body:
+            # A visibility copy follows evaluated motion, never joins physics.
+            with bpy.context.temp_override(scene=aux, view_layer=aux.view_layers[0], object=proxy,
+                                           active_object=proxy, selected_objects=[proxy], selected_editable_objects=[proxy]):
+                bpy.ops.rigidbody.object_remove()
+        proxy_transform(proxy, original)
+        by_source[original] = proxy
+        proxies.add(proxy)
+    allowed = visible - target - set(by_source)
+    for obj in tuple(aux.collection.objects):
+        if obj not in allowed and obj not in proxies:
+            aux.collection.objects.unlink(obj)
+    for obj in allowed:
+        if obj.name not in aux.objects:
+            aux.collection.objects.link(obj)
+    cache = {mat['hzz_eye_material_source']: mat for mat in bpy.data.materials
+             if mat.get('hzz_owner') == uid and mat.get('hzz_stage') == 'eye' and mat.get('hzz_eye_material_source')}
+    updated = set()
+    for original, proxy in by_source.items():
+        if original is None:
+            bpy.data.objects.remove(proxy, do_unlink=True)
+            continue
+        proxy.hide_render = original.hide_render or original not in visible
+        if proxy.data != original.data:
+            proxy.data = original.data
+        for source_slot, target_slot in zip(original.material_slots, proxy.material_slots):
+            source = source_slot.material
+            material = source
+            if source and source.surface_render_method == 'BLENDED':
+                material = cache.get(source) if source in updated else depth_material(source, uid, cache)
+                updated.add(source)
+            target_slot.link = 'OBJECT'
+            target_slot.material = material
+    for material in tuple(bpy.data.materials):
+        if material.get('hzz_owner') == uid and material.get('hzz_stage') == 'eye' and material.users == 0:
+            bpy.data.materials.remove(material)
+
+
 def auxiliary_scenes(scene):
     return [item for item in bpy.data.scenes if item.get('hzz_eye_source') == scene]
 
@@ -36,14 +155,7 @@ def sync(aux):
     if not source or not root:
         raise ValueError('透眼来源场景或角色已删除，请更新材质或恢复')
     target = {entry.object for entry in root.hzz_character.meshes if entry.object}
-    allowed = render_objects(source, aux['hzz_eye_layer']) - target
-    proxies = {obj for obj in aux.objects if obj.get('hzz_eye_proxy')}
-    for obj in tuple(aux.collection.objects):
-        if obj not in allowed and obj not in proxies:
-            aux.collection.objects.unlink(obj)
-    for obj in allowed:
-        if obj.name not in aux.objects:
-            aux.collection.objects.link(obj)
+    sync_visibility(aux, render_objects(source, aux['hzz_eye_layer']), target)
     aux.camera, aux.world = source.camera, source.world
     aux.render.engine = source.render.engine
     for name in ('resolution_x', 'resolution_y', 'resolution_percentage', 'pixel_aspect_x', 'pixel_aspect_y',
@@ -79,6 +191,7 @@ def prepare(root, context, modifiers):
         proxy.name = stable_proxy_name
         proxy['hzz_eye_name'] = stable_proxy_name
         proxy['hzz_eye_proxy'] = True
+        proxy_transform(proxy, obj)
         aux.collection.objects.link(proxy)
         # Remove stale owned modifiers copied from the previous build. Source
         # deformation, constraints and animation references are left intact.

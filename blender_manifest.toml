@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "hoyo_zzz_toon"
-version = "0.7.0"
+version = "0.7.1"
 name = "Hoyo-ZZZ-Toon"
 tagline = "绝区零 PMX 自动材质、局部调色与场景预览"
 maintainer = "muchuanhehua"
