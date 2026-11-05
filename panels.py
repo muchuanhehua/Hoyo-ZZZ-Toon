@@ -69,8 +69,8 @@ class HZZ_PT_materials(HZZPanel, bpy.types.Panel):
         row = layout.row(align=True)
         row.operator('hzz.reset_materials', icon='LOOP_BACK')
         row.operator('hzz.restore')
-        if p.build_version != 8:
-            message(layout, '旧版材质：点击更新材质启用统一肤色调节。')
+        if p.build_version != 9:
+            message(layout, '旧版材质：点击更新材质采用偏粉默认肤色。')
         elif p.resource_report:
             message(layout, p.resource_report)
         if p.preview_error:

@@ -151,10 +151,11 @@ def apply(root, context):
     new_modifiers, old_modifiers = [], [(e.object, m) for e in p.meshes for m in owned_modifiers(e.object, p.uid)]
     p.building = True
     try:
-        if p.build_version < 7:
-            # Migrate previous defaults only; keep deliberately authored shared colours.
-            for name, previous in (('skin_key_color', (1.02, .77, .79)),
-                                   ('skin_shadow_color', (.76, .44, .54))):
+        if p.build_version in {7, 8}:
+            # Only 0.6.1/0.6.2 used these neutral defaults. New and older
+            # profiles may have deliberately authored the same values.
+            for name, previous in (('skin_key_color', (1, 1, 1)),
+                                   ('skin_shadow_color', (.80, .75, .76))):
                 if all(abs(a - b) < 1e-6 for a, b in zip(getattr(p, name), previous)):
                     p.property_unset(name)
         cache = basic.ImageCache(p.uid)
@@ -207,7 +208,7 @@ def apply(root, context):
             key = binding.source.as_pointer()
             binding.diagnostic = '；'.join(descriptions[key].warnings + ([surface_messages[key]] if key in surface_messages else []))
         p.report = f'已应用 {len(replacements)} 个材质；{label}；增强图匹配 {len(surface_plans)} 个材质'
-        p.build_version = 8
+        p.build_version = 9
     except Exception:
         for entry, mesh, derived, slots in states:
             entry.object.data, entry.derived = mesh, derived

@@ -150,7 +150,7 @@ class HZZCharacter(PropertyGroup):
     active_material: IntProperty()
     skin_tint: FloatVectorProperty(name='色调', subtype='COLOR', size=3,
         default=(1, 1, 1), min=0, max=1, update=update_profile,
-        description='统一调整脸与已识别的身体皮肤；白色保留原色')
+        description='统一调整脸与已识别的身体皮肤；白色不额外染色')
     skin_brightness: FloatProperty(name='亮度', default=1, min=0, max=3, soft_max=2,
         update=update_profile, description='统一肤色亮度倍率；1 保持原亮度')
     skin_saturation: FloatProperty(name='饱和度', default=1, min=0, max=2,
@@ -173,13 +173,13 @@ class HZZCharacter(PropertyGroup):
     body_shadow_color: FloatVectorProperty(name='主体暗部色调', subtype='COLOR', size=3,
         default=(.42, .36, .57), min=0, max=1, update=update_profile)
     skin_shadow_color: FloatVectorProperty(name='皮肤暗部色调', subtype='COLOR', size=3,
-        default=(.80, .75, .76), min=0, max=1, update=update_profile)
+        default=(.76, .44, .54), min=0, max=1, update=update_profile)
     surface_key_color: FloatVectorProperty(name='主体亮面色调', subtype='COLOR', size=3,
         default=(.92, .82, .88), min=0, max=2, update=update_profile)
     surface_mid_color: FloatVectorProperty(name='主体浅影色调', subtype='COLOR', size=3,
         default=(.65, .58, .73), min=0, max=1, update=update_profile)
     skin_key_color: FloatVectorProperty(name='皮肤亮面色调', subtype='COLOR', size=3,
-        default=(1, 1, 1), min=0, max=2, update=update_profile)
+        default=(1.02, .77, .79), min=0, max=2, update=update_profile)
     face_key_color: FloatVectorProperty(name='脸部受光色调', subtype='COLOR', size=3,
         default=(1.02, .97, .87), min=0, max=2, update=update_profile)
     ambient_tint_strength: FloatProperty(name='暗部环境染色', default=1, min=0, max=2,
